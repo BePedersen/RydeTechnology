@@ -6,7 +6,6 @@ const {
     ActionRowBuilder,
 } = require('discord.js');
 
-const config = require('./config/default');
 const fs = require('fs');
 const csv = require('csv-parser');
 
@@ -61,7 +60,9 @@ client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}`);
 });
 
-client.login(config.DISCORD_TOKEN);
+require('dotenv').config();
+
+client.login(process.env.DISCORD_TOKEN);
 
 client.on('messageCreate', async (msg) => {
     if (msg.content === '!plan' && !msg.author.bot) {

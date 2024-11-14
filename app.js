@@ -42,8 +42,8 @@ async function readCSV(filePath) {
                 options.push({
                     label: row.label, 
                     value: row.value,
-                    // Only add phone if it exists in the row to avoid undefined errors
-                    phone: row.phone || 'Not provided'
+                    phone: row.phone || 'Not provided',  // Only add phone if it exists
+                    username: row.username || 'Not provided'  // Add username with default if missing
                 });
             })
             .on('end', () => {
@@ -66,8 +66,8 @@ client.login(config.DISCORD_TOKEN);
 client.on('messageCreate', async (msg) => {
     if (msg.content === '!plan' && !msg.author.bot) {
         try {
-            const peopleOptions = await readCSV('./data/people.csv'); // Path to your people CSV
-            const placesOptions = await readCSV('./data/places.csv'); // Path to your places CSV
+            const peopleOptions = await readCSV('./Deputy/people_on_shift.csv'); // Path to your people CSV
+            const placesOptions = await readCSV('./Data/places.csv'); // Path to your places CSV
 
             // Dropdown for selecting people
             const selectPerson = new StringSelectMenuBuilder()
@@ -208,9 +208,9 @@ client.on('interactionCreate', async (interaction) => {
 
 
                 const message = `🦍🦍🛴🛴 **Skift Plan** 🛴🛴🦍🦍\n\n` +
-                    `Skiftleder: ${username}\n\n` +
+                    `Skiftleder: ${username}\n` +
                     `\n **Goal** \n` + 
-                    `- Availebility: ${goalPercentage}% \n` +
+                    `- Availability: ${goalPercentage || '90'}% \n` +
                     `\n 🚦 **Team and områder**:\n` +
                     people.map((person, i) => `- ${person} ${getRandomWord()} ${places[i]}`).join('\n') + // Format selections with places
                     `\n\n📊 **Operational Notes**:\n` +

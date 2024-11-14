@@ -6,7 +6,7 @@ const fs = require('fs');
 const csv = require('csv-parser');
 
 // Function to read the CSV file and process the data
-async function readCSV(filePath) {
+async function readCSV(filePath, isPeopleFile = false) {
     return new Promise((resolve, reject) => {
         const options = [];
         console.log(`Reading CSV from ${filePath}`);
@@ -16,8 +16,16 @@ async function readCSV(filePath) {
             .on('data', (row) => {
                 console.log('Row read:', row); // Log each row for debugging
 
-                // Check for DisplayName field in the first CSV
-                if (row.DisplayName) {
+                if (isPeopleFile) {
+                    // Normalize field names by trimming spaces and handle 'username' field correctly
+                    options.push({
+                        label: row['label']?.trim() || '',  // Trim spaces around 'label'
+                        value: row['value']?.trim() || '',
+                        phone: row['phone']?.trim() || '',
+                        username: row[' username']?.trim() || '' // Trim spaces around 'username'
+                    });
+                } else if (row.DisplayName) {
+                    // For the on-shift file, only get the DisplayName
                     options.push({
                         label: row.DisplayName.trim() // Ensure DisplayName is trimmed
                     });
@@ -45,7 +53,7 @@ async function matchEmployees() {
     console.log('On-shift employees Set:', onShiftEmployees);
 
     // Load all employees from people.csv
-    const employees = await readCSV('./Data/people.csv');
+    const employees = await readCSV('./Data/people.csv', true);
     console.log('All employees read:', employees.length, 'entries');
     console.log('All employees:', employees); // Log the full employee list for debugging
 

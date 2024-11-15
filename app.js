@@ -65,7 +65,7 @@ require('dotenv').config();
 client.login(process.env.DISCORD_TOKEN);
 
 client.on('messageCreate', async (msg) => {
-    if (msg.content === '!plan' && !msg.author.bot) {
+    if (msg.content === '!opsplan' && !msg.author.bot) {
         try {
             const peopleOptions = await readCSV('./Deputy/people_on_shift.csv'); // Path to your people CSV
             const placesOptions = await readCSV('./Data/places.csv'); // Path to your places CSV
@@ -211,9 +211,14 @@ client.on('interactionCreate', async (interaction) => {
                 const message = `🦍🦍🛴🛴 **Skift Plan** 🛴🛴🦍🦍\n\n` +
                     `Skiftleder: ${username}\n` +
                     `\n **Goal** \n` + 
-                    `- Availability: ${goalPercentage || '90'}% \n` +
+                    `- Availability: ${goalPercentage || goalPercentage}% \n` +
                     `\n 🚦 **Team and områder**:\n` +
-                    people.map((person, i) => `- ${person} ${getRandomWord()} ${places[i]}`).join('\n') + // Format selections with places
+                    people.map((person, i) => {
+                        const personData = peopleOptions.find(option => option.value === person);
+                        const username = personData ? personData.username : 'Unknown User';
+                        const name = personData ? personData.label : 'Unknown Name';
+                        return `- ${username} ${getRandomWord()} ${places[i]}`;
+                    }).join('\n') +
                     `\n\n📊 **Operational Notes**:\n` +
                     `- **Inactivity**: 🔄 ${percentage}% inactive for **2 days**.\n` +
                     `- **Clusters**: ${parseInt(percentage) + 10}% in clusters.\n` +

@@ -20,7 +20,6 @@
 
 
 # Futrure ideas
-
 - AI trained bot to answere general questions such as how to fix a scooter, or real time update on were to change battery as ops
 - Route generator?
 - Scoreboard page where ops and mech can see theiur stats and how it is going

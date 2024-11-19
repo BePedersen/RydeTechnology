@@ -758,3 +758,188 @@ client.on('interactionCreate', async (interaction) => {
 
 });
 
+
+
+
+const { 
+    Client, 
+    GatewayIntentBits, 
+    StringSelectMenuBuilder, 
+    ActionRowBuilder 
+} = require('discord.js');
+
+const fs = require('fs');
+const csv = require('csv-parser');
+
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.DirectMessages,
+    ],
+});
+
+const userSelections = {};
+
+async function readCSV(filePath) {
+    return new Promise((resolve, reject) => {
+        const options = [];
+        fs.createReadStream(filePath)
+            .pipe(csv())
+            .on('data', (row) => {
+                options.push({
+                    label: row.label, 
+                    value: row.value,
+                    phone: row.phone || 'Not provided',
+                    username: row.username || 'Not provided',
+                });
+            })
+            .on('end', () => resolve(options))
+            .on('error', (error) => reject(error));
+    });
+}
+
+function getPeopleDropdown(options) {
+    return new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+            .setCustomId('personSelection')
+            .setPlaceholder('Select people')
+            .setMinValues(1)
+            .setMaxValues(options.length)
+            .addOptions(options)
+    );
+}
+
+function getPlaceDropdown(placesOptions, placeholder) {
+    return new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+            .setCustomId('placeSelection')
+            .setPlaceholder(placeholder)
+            .setMinValues(1)
+            .setMaxValues(1)
+            .addOptions(placesOptions)
+    );
+}
+
+function getPercentageDropdown() {
+    return new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+            .setCustomId('percentageSelection')
+            .setPlaceholder('Select a percentage')
+            .setMinValues(1)
+            .setMaxValues(1)
+            .addOptions(
+                { label: '50%', value: '50' },
+                { label: '75%', value: '75' },
+                { label: '100%', value: '100' }
+            )
+    );
+}
+
+client.once('ready', () => {
+    console.log(`Logged in as ${client.user.tag}`);
+});
+
+require('dotenv').config();
+client.login(process.env.DISCORD_TOKEN);
+
+client.on('messageCreate', async (msg) => {
+    if (msg.content === '!opsplan' && !msg.author.bot) {
+        try {
+            const peopleOptions = await readCSV('./Deputy/people_on_shift.csv');
+            const placesOptions = await readCSV('./Data/places.csv');
+
+            // Initialize state for user selections
+            userSelections[msg.author.id] = {
+                people: [],
+                places: [],
+                placesOptions,
+                currentDriverIndex: 0,
+                currentStep: 'selectPeople',
+            };
+
+            const rowPerson = getPeopleDropdown(peopleOptions);
+            await msg.reply({
+                content: 'Please select the people you want to assign places to:',
+                components: [rowPerson],
+            });
+
+        } catch (error) {
+            console.error('Error in opsplan:', error);
+            await msg.reply('There was an error processing your request. Please check the logs.');
+        }
+    }
+});
+
+client.on('interactionCreate', async (interaction) => {
+    if (!interaction.isStringSelectMenu()) return;
+
+    const userId = interaction.user.id;
+    const userState = userSelections[userId];
+    const currentStep = userState.currentStep;
+
+    if (currentStep === 'selectPeople' && interaction.customId === 'personSelection') {
+        userState.people = interaction.values;
+        console.log('People selected:', interaction.values);
+
+        userState.currentStep = 'selectPlace';
+
+        const driver = userState.people[userState.currentDriverIndex];
+        const rowPlace = getPlaceDropdown(
+            userState.placesOptions,
+            `Where should ${driver} drive?`
+        );
+
+        await interaction.update({
+            content: null,
+            components: [rowPlace],
+        });
+
+    } else if (currentStep === 'selectPlace' && interaction.customId === 'placeSelection') {
+        const selectedDriver = userState.people[userState.currentDriverIndex];
+        const selectedPlace = interaction.values[0];
+        userState.places.push({ person: selectedDriver, place: selectedPlace });
+
+        console.log(`${selectedDriver} has been assigned to ${selectedPlace}.`);
+
+        if (userState.currentDriverIndex < userState.people.length - 1) {
+            userState.currentDriverIndex++;
+
+            const nextDriver = userState.people[userState.currentDriverIndex];
+            const rowPlace = getPlaceDropdown(
+                userState.placesOptions,
+                `Where should ${nextDriver} drive?`
+            );
+
+            await interaction.update({
+                content: null,
+                components: [rowPlace],
+            });
+        } else {
+            userState.currentStep = 'selectPercentage';
+
+            const rowPercentage = getPercentageDropdown();
+            await interaction.update({
+                content: `All drivers have been assigned places. Now, select a percentage:`,
+                components: [rowPercentage],
+            });
+        }
+    } else if (currentStep === 'selectPercentage' && interaction.customId === 'percentageSelection') {
+        const selectedPercentage = interaction.values[0];
+        console.log('Selected percentage:', selectedPercentage);
+
+        await interaction.update({
+            content: `You selected ${selectedPercentage}%. Assignment process complete!`,
+            components: [],
+        });
+
+        // Show a summary
+        await interaction.followUp({
+            content: `Summary of assignments:\n` +
+                userState.places.map(({ person, place }) => `${person} → ${place}`).join('\n') +
+                `\nPercentage: ${selectedPercentage}%`,
+        });
+    }
+});
+

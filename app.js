@@ -17,7 +17,8 @@ const client = new Client({
     ],
 });
 
-// This is the global object to store user selections
+const randomWord = ['redder','fikser','støvsuger','ordner','steller'];
+
 const userSelections = {};
 
 async function readCSV(filePath) {
@@ -29,20 +30,37 @@ async function readCSV(filePath) {
                 options.push({
                     label: row.label, 
                     value: row.value,
-                    phone: row.phone || 'Not provided',  // Only add phone if it exists
-                    username: row.username || 'Not provided'  // Add username with default if missing
+                    phone: row.phone || 'Not provided',
+                    username: row.username || 'Not provided',
                 });
             })
-            .on('end', () => {
-                resolve(options);
-            })
-            .on('error', (error) => {
-                reject(error);
-            });
+            .on('end', () => resolve(options))
+            .on('error', (error) => reject(error));
     });
 }
 
-// Define helper functions for dropdowns
+function getPeopleDropdown(options) {
+    return new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+            .setCustomId('personSelection')
+            .setPlaceholder('Select people')
+            .setMinValues(1)
+            .setMaxValues(options.length)
+            .addOptions(options)
+    );
+}
+
+function getPlaceDropdown(placesOptions, placeholder) {
+    return new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+            .setCustomId('placeSelection')
+            .setPlaceholder(placeholder)
+            .setMinValues(1)
+            .setMaxValues(1)
+            .addOptions(placesOptions)
+    );
+}
+
 function getPercentageDropdown() {
     return new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
@@ -51,38 +69,52 @@ function getPercentageDropdown() {
             .setMinValues(1)
             .setMaxValues(1)
             .addOptions(
-                { label: '50%', value: '50' },
-                { label: '75%', value: '75' },
-                { label: '100%', value: '100' }
+                { label: '30%', value: '30' },
+                { label: '35%', value: '35' },
+                { label: '40%', value: '40' },
+                { label: '45%', value: '45' }
             )
     );
 }
 
-function getGoalDropdown() {
+// Function to get goal percentage
+function getGoalPercentage() {
     return new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
-            .setCustomId('goalSelection')
-            .setPlaceholder('Select a goal')
+            .setCustomId('goalPercentageSelection')
+            .setPlaceholder('Select goal completion percentage')
             .setMinValues(1)
             .setMaxValues(1)
             .addOptions(
-                { label: 'Goal A', value: 'goalA' },
-                { label: 'Goal B', value: 'goalB' },
-                { label: 'Goal C', value: 'goalC' }
+                { label: '85%', value: '85' },
+                { label: '86%', value: '86' },
+                { label: '87%', value: '87' },
+                { label: '88%', value: '88' },
+                { label: '89%', value: '89' },
+                { label: '90%', value: '90' },
+                { label: '91%', value: '91' },
+                { label: '92%', value: '92' },
+                { label: '93%', value: '93' },
+                { label: '94%', value: '94' },
+                { label: '95%', value: '95' },
+                { label: '96', value: '96' },
             )
     );
 }
 
-function getInactiveDropdown() {
+// Function to get inactive days
+function getDaysInactive() {
     return new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
-            .setCustomId('inactiveSelection')
-            .setPlaceholder('Select inactive status')
+            .setCustomId('daysInactiveSelection')
+            .setPlaceholder('Select how many days inactive')
             .setMinValues(1)
             .setMaxValues(1)
             .addOptions(
-                { label: 'Active', value: 'active' },
-                { label: 'Inactive', value: 'inactive' }
+                { label: '1 day', value: '1' },
+                { label: '2 days', value: '2' },
+                { label: '3 days', value: '3' },
+                { label: 'More than 3 days', value: 'more' }
             )
     );
 }
@@ -97,175 +129,166 @@ client.login(process.env.DISCORD_TOKEN);
 client.on('messageCreate', async (msg) => {
     if (msg.content === '!opsplan' && !msg.author.bot) {
         try {
-            const peopleOptions = await readCSV('./Deputy/people_on_shift.csv'); // Path to your people CSV
-            
-            // Dropdown for selecting people
-            const selectPerson = new StringSelectMenuBuilder()
-                .setCustomId('personSelection')
-                .setPlaceholder('Select people')
-                .setMinValues(1)
-                .setMaxValues(peopleOptions.length)
-                .addOptions(peopleOptions);
+            const peopleOptions = await readCSV('./Deputy/people_on_shift.csv');
+            const placesOptions = await readCSV('./Data/places.csv');
 
-            const rowPerson = new ActionRowBuilder().addComponents(selectPerson);
-
+            // Initialize state for user selections
             userSelections[msg.author.id] = {
                 people: [],
-                places: [] // Store places for each user
+                places: [],
+                placesOptions,
+                peopleOptions, // Store peopleOptions here
+                currentDriverIndex: 0,
+                currentStep: 'selectPeople',
+                percentage: null,
+                comment: null,
+                inactivePercentage: 0,
+                daysInactive: 2, // Default to 2 days inactive if not provided
+                goalPercentage: null, // Add goal percentage
             };
 
+            const rowPerson = getPeopleDropdown(peopleOptions);
             await msg.reply({
                 content: 'Please select the people you want to assign places to:',
-                components: [rowPerson]
+                components: [rowPerson],
             });
 
         } catch (error) {
-            console.error('Error in people selection:', error);
+            console.error('Error in opsplan:', error);
             await msg.reply('There was an error processing your request. Please check the logs.');
         }
+    } else if (
+        userSelections[msg.author.id] &&
+        userSelections[msg.author.id].currentStep === 'addComment'
+    ) {
+        // Capture comment
+        userSelections[msg.author.id].comment = msg.content;
+
+        const userState = userSelections[msg.author.id];
+        const summaryMessage = 
+            
+            `🦍🦍🛴🛴 **Shift Plan** 🛴🛴🦍🦍\n\n` +
+            `Skiftleder: ${msg.author.username}\n` +
+            `\n **Goal** \n` + 
+            `- Availability: 🎯 ${userState.goalPercentage ? userState.goalPercentage + "%" : "Not set"}\n\n` +  // Check if goalPercentage is set
+            `🚦 **Team and Areas**:\n` +
+
+            userState.places.map(({ person, place }) => {
+                // Select a random word from the list
+                const randomWord = randomWord[Math.floor(Math.random() * randomWord.length)];
+            
+                // Find the corresponding username from the CSV data
+                const personData = userState.peopleOptions.find(option => option.label === person);
+            
+                // Return the formatted string with the random word inserted
+                return `- ${personData?.username || person} ${randomWord} ${place}`;
+            }).join('\n')
+                     
+            
+            `\n\n📊 **Operational Notes**:\n` +
+            `- **Inactivity**: 🔄 ${userState.inactivePercentage}% inactive for ** ${userState.daysInactive || 2} days**.\n` +
+            `- **Clusters**: ${parseInt(userState.inactivePercentage) + 10}% in clusters.\n` +
+            `- **Redeployment**: 📉 ${parseInt(userState.inactivePercentage) + 15}% on inactives.\n\n` +
+            `🔒 **Container Codes**:\n` +
+            `- Code: **1602**\n\n` +
+            `🚨 **Important Reminders**:\n` +
+            `- **Use the car** 🚗\n` +
+            `- **Send routes** 🗺️\n` +
+            `- Ensure **Good Quality Control (QC)**\n` +
+            `- **Prioritize Superlows**\n` +
+            `- If you receive a **nivel** issue, **fix it within an hour**.\n\n` +
+            `📞 **Contact**:\n` +
+            userState.places.map(({ person }) => {
+                // Find the corresponding person from the CSV data
+                const personData = userState.peopleOptions.find(option => option.label === person);
+                return `• ${personData?.label}: ${personData?.phone || 'No phone'}`;
+            }).join('\n') +
+            `\n\n **Comment**:\n${userState.comment || 'No additional comment'}\n` +
+            `\n\n 🪫🪫 **Battery Check** 🔋🔋 \n` +
+            `Make sure you're charged up and ready to go!`;
+
+        await msg.reply(summaryMessage);
+        delete userSelections[msg.author.id]; // Clear user state after completion
     }
 });
+
+
 
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isStringSelectMenu()) return;
 
-    const userId = interaction.user.id;  // Ensure userId is defined here
+    const userId = interaction.user.id;
+    const userState = userSelections[userId];
+    const currentStep = userState.currentStep;
 
-    if (interaction.customId === 'personSelection') {
-        try {
-            // Store the selected people for the user
-            userSelections[userId].people = interaction.values;
-            console.log('People selected:', interaction.values);
+    if (currentStep === 'selectPeople' && interaction.customId === 'personSelection') {
+        userState.people = interaction.values;
+        userState.currentStep = 'selectPlace';
 
-            // Send confirmation message about the people selected
+        const driver = userState.people[userState.currentDriverIndex];
+        const rowPlace = getPlaceDropdown(
+            userState.placesOptions,
+            `Where should ${driver} drive?`
+        );
+
+        await interaction.update({
+            content: null,
+            components: [rowPlace],
+        });
+
+    } else if (currentStep === 'selectPlace' && interaction.customId === 'placeSelection') {
+        const selectedDriver = userState.people[userState.currentDriverIndex];
+        const selectedPlace = interaction.values[0];
+        userState.places.push({ person: selectedDriver, place: selectedPlace });
+
+        if (userState.currentDriverIndex < userState.people.length - 1) {
+            userState.currentDriverIndex++;
+            const nextDriver = userState.people[userState.currentDriverIndex];
+            const rowPlace = getPlaceDropdown(
+                userState.placesOptions,
+                `Where should ${nextDriver} drive?`
+            );
+
             await interaction.update({
-                content: `You selected: ${interaction.values.join(', ')}. Now select a place for each driver:`,
-                components: [] // Remove the people selection dropdown
+                content: null,
+                components: [rowPlace],
             });
+        } else {
+            userState.currentStep = 'selectPercentage';
 
-            // Proceed with the place selection
-            console.log('Reading places CSV...');
-            const placesOptions = await readCSV('./Data/places.csv'); // Path to your places CSV
-            console.log('Places options:', placesOptions);
-
-            // Store places options for the user
-            userSelections[userId].placesOptions = placesOptions;
-
-            // Create an array to hold all action rows for the place selections
-            const actionRows = [];
-
-            // Loop through each selected person (driver) and create a place selection menu for each one
-            for (let i = 0; i < interaction.values.length; i++) {
-                const selectPlace = new StringSelectMenuBuilder()
-                    .setCustomId(`placeSelection_${i}`) // Unique ID for each menu
-                    .setPlaceholder(`Select a place for ${interaction.values[i]}`)
-                    .setMinValues(1)
-                    .setMaxValues(1) // One place per person
-                    .addOptions(placesOptions);
-
-                const rowPlace = new ActionRowBuilder().addComponents(selectPlace);
-                actionRows.push(rowPlace); // Add each row to the actionRows array
-            }
-
-            // Send the place selection dropdowns for each driver
-            await interaction.followUp({
-                content: 'Please select a place for each driver:',
-                components: actionRows
-            });
-
-        } catch (error) {
-            console.error('Error in handling person selection or reading places CSV:', error);
-            await interaction.followUp('There was an error processing your request. Please check the logs for more details.');
-        }
-    }
-
-    // Handle the interaction for place selection
-    if (interaction.customId.startsWith('placeSelection_')) {
-        const personIndex = parseInt(interaction.customId.split('_')[1]); // Extract the index from the customId
-        const selectedPlace = interaction.values[0]; // Get the selected place
-
-        try {
-            // Ensure that the placesOptions are available for this user
-            const placesOptions = userSelections[userId].placesOptions;
-            if (!placesOptions) {
-                throw new Error('Places options not found for this user.');
-            }
-
-            // Assign the place to the driver (person)
-            userSelections[userId].places[personIndex] = selectedPlace;
-            console.log(`${userSelections[userId].people[personIndex]} has been assigned to ${selectedPlace}`);
-
-            // Send confirmation that the place has been assigned
+            const rowPercentage = getPercentageDropdown();
             await interaction.update({
-                content: `${userSelections[userId].people[personIndex]} has been assigned to ${selectedPlace}. Now, select percentage, goal, and inactive status:`,
-                components: [] // Remove the dropdown for this person after they have selected a place
-            });
-
-            // After assigning a place, send the dropdowns for percentage, goal, and inactive status
-            await interaction.followUp({
-                content: 'Please select the percentage, goal, and inactive status for each driver:',
-                components: [
-                    getPercentageDropdown(),
-                    getGoalDropdown(),
-                    getInactiveDropdown()
-                ]
-            });
-
-        } catch (error) {
-            console.error('Error in handling place selection:', error);
-            await interaction.followUp('There was an error processing your place selection. Please check the logs for more details.');
-        }
-    }
-
-    // Handle percentage selection
-    if (interaction.customId === 'percentageSelection') {
-        const selectedPercentage = interaction.values[0];  // Get the selected percentage
-        console.log(`${interaction.user.username} selected percentage: ${selectedPercentage}`);
-        
-        // Store the selected percentage (you can store this in `userSelections[userId]`)
-        userSelections[userId].percentage = selectedPercentage;
-
-        await interaction.update({
-            content: `You selected: ${selectedPercentage}%. Now, please select a goal:`,
-            components: [getGoalDropdown()]  // Show the goal dropdown next
-        });
-    }
-
-    // Handle goal selection
-    if (interaction.customId === 'goalSelection') {
-        const selectedGoal = interaction.values[0];  // Get the selected goal
-        console.log(`${interaction.user.username} selected goal: ${selectedGoal}`);
-        
-        // Store the selected goal
-        userSelections[userId].goal = selectedGoal;
-
-        await interaction.update({
-            content: `You selected: ${selectedGoal}. Now, please select the inactive status:`,
-            components: [getInactiveDropdown()]  // Show the inactive dropdown next
-        });
-    }
-
-    // Handle inactive selection
-    if (interaction.customId === 'inactiveSelection') {
-        const selectedInactive = interaction.values[0];  // Get the selected inactive status
-        console.log(`${interaction.user.username} selected inactive status: ${selectedInactive}`);
-        
-        // Store the selected inactive status
-        userSelections[userId].inactive = selectedInactive;
-
-        await interaction.update({
-            content: `You selected: ${selectedInactive}.`,
-            components: []  // Remove the dropdown
-        });
-
-        // Optionally, you can finalize or show a summary after all selections are done
-        if (userSelections[userId].percentage && userSelections[userId].goal && userSelections[userId].inactive) {
-            await interaction.followUp({
-                content: `You have completed your selections:\n` +
-                         `Percentage: ${userSelections[userId].percentage}\n` +
-                         `Goal: ${userSelections[userId].goal}\n` +
-                         `Inactive status: ${userSelections[userId].inactive}`
+                content: `All drivers have been assigned places. Now, select a percentage:`,
+                components: [rowPercentage],
             });
         }
+    } else if (currentStep === 'selectPercentage' && interaction.customId === 'percentageSelection') {
+        userState.percentage = interaction.values[0];
+        userState.currentStep = 'selectGoalPercentage'; // New step for goal percentage
+
+        const rowGoalPercentage = getGoalPercentage();
+        await interaction.update({
+            content: `You selected ${userState.percentage}%. Now, select the goal completion percentage:`,
+            components: [rowGoalPercentage],
+        });
+    } else if (currentStep === 'selectGoalPercentage' && interaction.customId === 'goalPercentageSelection') {
+        userState.goalPercentage = interaction.values[0];
+        console.log("Goal Percentage Set: ", userState.goalPercentage); // Log this value
+        userState.currentStep = 'selectDaysInactive'; // New step for inactive days
+    
+        const rowDaysInactive = getDaysInactive();
+        await interaction.update({
+            content: `You selected a goal percentage of ${userState.goalPercentage}%. Now, select how many days inactive:`,
+            components: [rowDaysInactive],
+        });
+        
+    } else if (currentStep === 'selectDaysInactive' && interaction.customId === 'daysInactiveSelection') {
+        userState.daysInactive = interaction.values[0];
+        userState.currentStep = 'addComment';
+
+        await interaction.update({
+            content: `You selected ${userState.daysInactive} days inactive. Please type a comment to finalize the shift plan:`,
+            components: [],
+        });
     }
 });

@@ -185,9 +185,9 @@ client.on('messageCreate', async (msg) => {
             }).join('\n') +
             
             `\n\n📊 **Operational Notes**:\n` +
-            `- **Inactivity**: 🔄 ${userState.percentageSelection}% inactive for ** ${userState.daysInactive || 2} days**.\n` +
-            `- **Clusters**: ${parseInt(userState.percentageSelection) + 10}% in clusters.\n` +
-            `- **Redeployment**: 📉 ${parseInt(userState.percentageSelection) + 15}% on inactives.\n\n` +
+            `- **Inactivity**: 🔄 ${userState.percentage}% inactive for ** ${userState.daysInactive || 2} days**.\n` +
+            `- **Clusters**: ${parseInt(userState.percentage) + 10}% in clusters.\n` +
+            `- **Redeployment**: 📉 ${parseInt(userState.percentage) + 15}% on inactives.\n\n` +
             `🔒 **Container Codes**:\n` +
             `- Code: **1602**\n\n` +
             `🚨 **Important Reminders**:\n` +

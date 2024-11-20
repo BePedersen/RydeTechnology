@@ -114,7 +114,7 @@ function getDaysInactive() {
                 { label: '1 day', value: '1' },
                 { label: '2 days', value: '2' },
                 { label: '3 days', value: '3' },
-                { label: 'More than 3 days', value: 'more' }
+                { label: 'More than 3 days', value: 'More than 3 days' }
             )
     );
 }
@@ -174,21 +174,20 @@ client.on('messageCreate', async (msg) => {
             `🚦 **Team and Areas**:\n` +
 
             userState.places.map(({ person, place }) => {
-                // Select a random word from the list
-                const randomWord = randomWord[Math.floor(Math.random() * randomWord.length)];
+                // Select a random word from the list using the already declared randomWord array
+                const selectedWord = randomWord[Math.floor(Math.random() * randomWord.length)];
             
                 // Find the corresponding username from the CSV data
                 const personData = userState.peopleOptions.find(option => option.label === person);
             
                 // Return the formatted string with the random word inserted
-                return `- ${personData?.username || person} ${randomWord} ${place}`;
-            }).join('\n')
-                     
+                return `- ${personData?.username || person} ${selectedWord} ${place}`;
+            }).join('\n') +
             
             `\n\n📊 **Operational Notes**:\n` +
-            `- **Inactivity**: 🔄 ${userState.inactivePercentage}% inactive for ** ${userState.daysInactive || 2} days**.\n` +
-            `- **Clusters**: ${parseInt(userState.inactivePercentage) + 10}% in clusters.\n` +
-            `- **Redeployment**: 📉 ${parseInt(userState.inactivePercentage) + 15}% on inactives.\n\n` +
+            `- **Inactivity**: 🔄 ${userState.percentageSelection}% inactive for ** ${userState.daysInactive || 2} days**.\n` +
+            `- **Clusters**: ${parseInt(userState.percentageSelection) + 10}% in clusters.\n` +
+            `- **Redeployment**: 📉 ${parseInt(userState.percentageSelection) + 15}% on inactives.\n\n` +
             `🔒 **Container Codes**:\n` +
             `- Code: **1602**\n\n` +
             `🚨 **Important Reminders**:\n` +

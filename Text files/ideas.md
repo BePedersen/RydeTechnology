@@ -17,11 +17,14 @@
 - Connect to Deputy to give push notifications - and give push if people are mentioned in the chat
 - A celebrations for when good work is done
 - make a to-do list for the people on shift based on the plan
+- progress bar
 
 
 # Futrure ideas
 
 - AI trained bot to answere general questions such as how to fix a scooter, or real time update on were to change battery as ops
+- Give video on how to fix something or a explenation on routines battery handeling and such 
+
 - Route generator?
 - Scoreboard page where ops and mech can see theiur stats and how it is going
 - Connect to innventory, give notification for when things are empty

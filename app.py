@@ -1,24 +1,36 @@
 import discord
 from discord.ext import commands
 import os
-from Commands import opsplan
 from dotenv import load_dotenv
+import logging
+from Commands.opsplan import opsplan
 
-# Load environment variables (like bot token)
-from dotenv import load_dotenv
+
+# Load environment variables
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 
 # Initialize bot
 intents = discord.Intents.default()
+intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Opsplan
+
+# Command for opsplan
 @bot.command(name='opsplan')
 async def opsplan_command(ctx):
-    if ctx.message.content == "!opsplan":
-        # This is where we run the logic for the !opsplan command
-        await opsplan.run()  # Run the opsplan code
+    await opsplan(ctx)  # Call the opsplan function from opsplan.py
 
-# Run the bot
+
 if __name__ == "__main__":
-    bot.run(os.getenv("DISCORD_TOKEN"))
+    token = os.getenv("DISCORD_TOKEN")
+    if not token:
+        logging.error("DISCORD_TOKEN is not set in the environment.")
+    else:
+        try:
+            logging.info("Starting the bot...")
+            bot.run(token)
+        except Exception as e:
+            logging.exception("An error occurred while running the bot.")

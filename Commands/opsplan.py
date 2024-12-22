@@ -1,6 +1,9 @@
 import csv
 import discord
+from discord.ext import commands
 from discord.ui import Select, View
+from asyncio import TimeoutError
+import random
 
 # Function to read CSV
 def read_csv(file_path):
@@ -10,22 +13,31 @@ def read_csv(file_path):
             csv_reader = csv.DictReader(file)
             for row in csv_reader:
                 options.append({
-                    'label': row['label'],
-                    'value': row['label'],  # Ensure value matches label for simplicity
-                    'phone': row.get('phone', 'Not provided'),
-                    'username': row.get('username', 'Not provided'),
+                    'label': row['label'],        # Person's name
+                    'value': row['value'],        # Identifier or shift code
+                    'phone': row.get('phone', 'Not provided'),  # Phone number
                 })
     except Exception as e:
         print(f"Error reading CSV: {e}")
     return options
 
-# Generate percentage options
+# Helper to format places list with "and" between the last two cities
+def format_places_list(places):
+    if len(places) > 1:
+        return f"{', '.join(places[:-1])} and {places[-1]}"
+    return places[0]
+
+# Generate percentage options for general usage
 def generate_percentage_options():
-    return [{'label': f"{i}%", 'value': str(i)} for i in range(0, 101, 10)]
+    return [{'label': f"{i}%", 'value': str(i)} for i in range(20, 45, 5)]
+
+# Generate percentage options for goals, ensuring they do not overlap with general percentages
+def generate_goal_percentage_options():
+    return [{'label': f"{i}%", 'value': str(i)} for i in range(85, 97, 1)]
 
 # Generate days inactive options
 def generate_days_options():
-    return [{'label': f"{i} days", 'value': str(i)} for i in range(0, 31, 5)]
+    return [{'label': f"{i} days", 'value': str(i)} for i in range(1, 6, 1)]
 
 # Dropdown and View classes
 class Dropdown(Select):
@@ -48,15 +60,33 @@ class DropdownView(View):
         for dropdown in dropdowns:
             self.add_item(dropdown)
 
+# Function to read chat input
+async def read_chat(ctx, prompt_message, timeout=60):
+    """Prompt the user to input additional data via chat."""
+    await ctx.send(prompt_message)
+    try:
+        message = await ctx.bot.wait_for(
+            'message',
+            check=lambda m: m.author == ctx.author and m.channel == ctx.channel,
+            timeout=timeout
+        )
+        return message.content
+    except TimeoutError:
+        await ctx.send("No response received within the time limit. Skipping this step.")
+        return None
+
 # The opsplan function
 async def opsplan(ctx):
     try:
         # Load data from CSV files
-        people_options = read_csv('Deputy/people_on_shift.csv')
+        people_options = read_csv('Data/people_on_shift_ops.csv')
         places_options = read_csv('Data/Stavanger.csv')
 
         selected_people = []
         selected_places = {}
+        selected_percentage = None
+        selected_goal_percentage = None
+        selected_days_inactive = None
 
         # People selection callback
         async def people_callback(interaction):
@@ -69,9 +99,9 @@ async def opsplan(ctx):
 
         # Places selection callback
         async def place_callback(interaction, person):
-            places = interaction.data['values']
+            places = [value for value in interaction.data['values']]  # Extract only city names
             selected_places[person] = places
-            await interaction.response.send_message(f"{person} will drive to {', '.join(places)}", ephemeral=True)
+            await interaction.response.send_message(f"{person} will drive to {format_places_list(places)}", ephemeral=True)
 
             # Check if all places are assigned
             if len(selected_places) == len(selected_people):
@@ -84,8 +114,8 @@ async def opsplan(ctx):
             for person in selected_people:
                 person_places_options = [
                     {
-                        'label': opt['label'],
-                        'value': f"{opt['value']}_{person}"  # Ensure unique values
+                        'label': opt['label'],  # City name
+                        'value': opt['value']  # Unique value for the city
                     }
                     for opt in places_options
                 ]
@@ -104,20 +134,66 @@ async def opsplan(ctx):
 
         # Create dropdowns for additional settings
         async def create_additional_settings_dropdowns():
-            # Percentage selection callback
+            nonlocal selected_percentage, selected_goal_percentage, selected_days_inactive
+            additional_comment = None  # To store the user's additional comment
+            random_phrases = ["kjører til", "fikser", "order"]  # Random action phrases
+
             async def percentage_callback(interaction):
-                selected_percentage = interaction.data['values'][0]
+                nonlocal selected_percentage
+                selected_percentage = int(interaction.data['values'][0])
                 await interaction.response.send_message(f"Selected percentage: {selected_percentage}%", ephemeral=True)
 
-            # Goal percentage selection callback
             async def goal_percentage_callback(interaction):
-                selected_goal_percentage = interaction.data['values'][0]
+                nonlocal selected_goal_percentage
+                selected_goal_percentage = int(interaction.data['values'][0])
                 await interaction.response.send_message(f"Selected goal percentage: {selected_goal_percentage}%", ephemeral=True)
 
-            # Days inactive selection callback
             async def days_inactive_callback(interaction):
-                selected_days = interaction.data['values'][0]
-                await interaction.response.send_message(f"Selected days inactive: {selected_days} days", ephemeral=True)
+                nonlocal selected_days_inactive
+                selected_days_inactive = int(interaction.data['values'][0])
+                await interaction.response.send_message(f"Selected days inactive: {selected_days_inactive} days", ephemeral=True)
+
+                # Once all settings are configured, prompt for additional comments
+                additional_comment = await read_chat(
+                    ctx,
+                    "If you have additional notes or instructions, please type them in the chat below. You have 60 seconds:"
+                )
+                await send_final_message(additional_comment)
+
+            # Final message function
+            async def send_final_message(comment):
+                # Match names to phone numbers
+                person_details = {person['label']: person['phone'] for person in people_options}
+
+                shift_plan_message = (
+                    f"🦍🦍🛴🛴 **Shift Plan** 🛴🛴🦍🦍\n\n"
+                    f"Skiftleder: {ctx.author.name}\n\n"
+                    f" **Goal** \n"
+                    f"- Availability: 🎯 {selected_goal_percentage}%\n\n"
+                    "🚦 **Team and Areas**:\n"
+                    + "\n".join(
+                        [
+                            f"- {person} {random.choice(random_phrases)} {format_places_list(places)}"
+                            for person, places in selected_places.items()
+                        ]
+                    )
+                    + "\n\n📊 **Operational Notes**:\n"
+                    f"- **Inactivity**: 🔄 {selected_percentage}% inactive for {selected_days_inactive} days.\n"
+                    f"- **Clusters**: {selected_percentage + 10}% in clusters.\n"
+                    f"- **Redeployment**: 📉 {selected_percentage + 15}% on inactives.\n\n"
+                    "📞 **Contact**:\n"
+                    + "\n".join(
+                        [
+                            f"• {name}: {phone}"
+                            for name, phone in person_details.items()
+                            if name in selected_places.keys()
+                        ]
+                    )
+                    + f"\n\n **Comment**:\n{comment or 'No additional comment'}\n\n"
+                    "🪫🪫 **Battery Check** 🔋🔋 \n"
+                    "Make sure you're charged up and ready to go! \n"
+                )
+                await ctx.send(shift_plan_message)
 
             # Create dropdowns
             percentage_dropdown = Dropdown(
@@ -128,7 +204,7 @@ async def opsplan(ctx):
 
             goal_percentage_dropdown = Dropdown(
                 placeholder="Select goal percentage",
-                options=generate_percentage_options(),
+                options=generate_goal_percentage_options(),
                 callback=goal_percentage_callback
             )
 
@@ -138,17 +214,18 @@ async def opsplan(ctx):
                 callback=days_inactive_callback
             )
 
-            # Create a view with the additional settings dropdowns
+            # Create a view with the dropdowns
             view = DropdownView(ctx, [percentage_dropdown, goal_percentage_dropdown, days_inactive_dropdown])
             await ctx.send("Please configure additional settings using the dropdowns below:", view=view)
 
         # Create a dropdown for selecting people
-        people_dropdown = Dropdown("Select people", people_options, people_callback, multiple=True)
-
-        # Create a view with the people dropdown
+        people_dropdown = Dropdown(
+            "Select people",
+            [{'label': opt['label'], 'value': opt['label']} for opt in people_options],
+            people_callback,
+            multiple=True
+        )
         view = DropdownView(ctx, [people_dropdown])
-
-        # Send the message for the first selection
         await ctx.send("Please select the people first:", view=view)
 
     except Exception as e:

@@ -4,6 +4,7 @@ from discord.ext import commands
 from discord.ui import Select, View
 from asyncio import TimeoutError
 import random
+from datetime import datetime
 
 # Function to read CSV
 def read_csv(file_path):
@@ -165,8 +166,19 @@ async def opsplan(ctx):
                 # Match names to phone numbers
                 person_details = {person['label']: person['phone'] for person in people_options}
 
+                now = datetime.now()
+                current_hour = now.hour
+                date_string = now.strftime("%d.%m.%Y")
+
+                if 6 <= current_hour < 14:
+                    shift_text = f"🌅 Morgenskift {date_string} 🌅"
+                elif 14 <= current_hour < 22:
+                    shift_text = f"🌄 Kveldskift {date_string} 🌄"
+                else:
+                    shift_text = f"🌠 Nattskift {date_string} 🌠"
+
                 shift_plan_message = (
-                    f"🦍🦍🛴🛴 **Shift Plan** 🛴🛴🦍🦍\n\n"
+                    f"{shift_text}\n\n"
                     f"Skiftleder: {ctx.author.name}\n\n"
                     f" **Goal** \n"
                     f"- Availability: 🎯 {selected_goal_percentage}%\n\n"

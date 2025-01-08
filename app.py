@@ -4,17 +4,9 @@ import os
 from dotenv import load_dotenv
 import logging
 from Commands.opsplan import opsplan
+from Commands.mechplan import mechplan
+from Data_extraction.Deputy.match_names_from_deputy import match_and_update  # Import match_and_update
 
-
-# Define the intents your bot will use
-intents = discord.Intents.default()
-intents.messages = True  # To allow reading messages (used in chat reading)
-intents.message_content = True  # To access message content
-intents.guilds = True  # To allow interaction within guilds
-
-
-# Initialize the bot with intents
-bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Load environment variables
 load_dotenv()
@@ -22,27 +14,67 @@ load_dotenv()
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
-# Initialize bot
+# Define intents for the bot
 intents = discord.Intents.default()
-intents.message_content = True
+intents.messages = True  # Allow reading messages
+intents.message_content = True  # Allow access to message content
+intents.guilds = True  # Allow interaction within guilds
+intents.members = True  # Enable fetching member details
+
+# Initialize the bot
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+# Function to prepare data
+async def prepare_data(ctx, output_file):
+    """
+    Prepares data before executing commands:
+    - Matches names from Stavanger_Deputy.csv to Discord members.
+    Writes results to the specified output file.
+    """
+    deputy_file = 'Data/Deputy/Stavanger_Deputy.csv'
 
-# Command for opsplan
+    try:
+        logging.info("Preparing data...")
+
+        # Match names dynamically using Discord members and write to the specified file
+        await match_and_update(ctx, deputy_file, output_file)
+        logging.info(f"Name matching completed successfully and written to {output_file}.")
+
+    except Exception as e:
+        logging.error(f"Error during data preparation: {e}")
+        await ctx.send(f"An error occurred during data preparation. Please try again.\n{e}")
+
+# Command: Opsplan
 @bot.command(name='opsplan')
 async def opsplan_command(ctx):
+    """
+    Executes the opsplan functionality after preparing data.
+    """
+    output_file = 'Data/people_on_shift_ops.csv'  # File to write to for opsplan
+    await prepare_data(ctx, output_file)  # Prepare data before running opsplan
+    try:
+        logging.info(f"Opsplan command triggered by {ctx.author.name}.")
+        await opsplan(ctx)  # Call the opsplan function from opsplan.py
+    except Exception as e:
+        logging.error(f"Error in opsplan command: {e}")
+        await ctx.send("An error occurred while processing opsplan. Please try again.")
 
-    # Command to make sure that all the data files are up to date
+# Command: Mechplan
+@bot.command(name='mechplan')
+async def mechplan_command(ctx):
+    """
+    Executes the mechplan functionality after preparing data.
+    """
+    output_file = 'Data/people_on_shift_mech.csv'  # File to write to for mechplan
+    await prepare_data(ctx, output_file)  # Prepare data before running mechplan
+    try:
+        logging.info(f"Mechplan command triggered by {ctx.author.name}.")
+        await mechplan(ctx)  # Call the mechplan function from mechplan.py
+    except Exception as e:
+        logging.error(f"Error in mechplan command: {e}")
+        await ctx.send("An error occurred while processing mechplan. Please try again.")
 
-    await opsplan(ctx)  # Call the opsplan function from opsplan.py
-
-
-# Command for mechplan
-
-
-# Command for question - AI bot
-
-
+# Run the bot
 if __name__ == "__main__":
     token = os.getenv("DISCORD_TOKEN")
     if not token:

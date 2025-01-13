@@ -6,6 +6,12 @@ from asyncio import TimeoutError
 import logging
 from datetime import datetime
 
+intents = discord.Intents.default()
+intents.messages = True  # Allow reading messages
+intents.message_content = True  # Allow access to message content
+intents.guilds = True  # Allow interaction within guilds
+intents.members = True  # Enable fetching member details
+
 # Function to read CSV files
 def read_csv(file_path):
     options = []
@@ -31,7 +37,7 @@ class Dropdown(Select):
                 for opt in options
             ],
             min_values=1,
-            max_values=len(options) if multiple else 1
+             max_values=len(options) if len(options) < 5 else 5  # Adjust for fewer options
         )
         self.custom_callback = callback
 
@@ -199,7 +205,7 @@ async def mechplan(ctx):
                 "Ikke glem å kost under pult og sjekk at det ser fint ut på verkstedet før dere går, "
                 "verkstedet skal ikke ha småting liggende rundt, legg alt på plass!\n\n"
                 "Husk jobs, kildesortering og legg til deler\U0001F4AA\n\n"
-                "NB! Pass på at verktøyet på tavlene ligger på rett plass med riktig farge! \u26AA\u26AB\U0001F535\u26AB\u26AB\n\n"
+                "NB! Pass på at verktøyet på tavlene ligger på rett plass med riktig farge! ⚪️⚫️🔵🔴🟢🟠"
                 "Det er bare å spørre meg eller andre dersom dere skulle lure på noe\U0001F60A"
             )
 

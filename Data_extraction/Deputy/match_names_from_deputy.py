@@ -4,7 +4,7 @@ import discord
 
 async def match_and_update(ctx, deputy_file, output_file):
     """
-    Matches names from Stavanger_Deputy.csv to Discord members dynamically,
+    Matches nicknames from Stavanger_Deputy.csv to Discord members dynamically,
     and writes updated data to the specified output file.
 
     Args:
@@ -14,12 +14,12 @@ async def match_and_update(ctx, deputy_file, output_file):
     """
     guild = ctx.guild  # The server (guild) where the command is executed
 
-    # Fetch all Discord members
+    # Fetch all Discord members with nicknames
     discord_members = [
         {
-            "name": member.name,
-            "nickname": member.display_name,
-            "user_id": f"@{member.id}",  # Use user_id in @<user_id> format
+            "nickname": member.display_name,  # Server-specific nickname
+            "user_id": str(member.id),       # Plain user ID without @
+            "username": f"@{member.id}"      # User ID with @ for username
         }
         for member in guild.members
     ]
@@ -33,16 +33,16 @@ async def match_and_update(ctx, deputy_file, output_file):
     output_data = []
 
     for row in deputy_data:
-        name = row['label']  # Name from Stavanger_Deputy.csv
+        nickname = row['label']  # Nickname from Stavanger_Deputy.csv
         phone = row.get('phone', '')  # Get phone if provided, otherwise empty
-        matched_member = next((m for m in discord_members if m['name'] == name or m['nickname'] == name), None)
+        matched_member = next((m for m in discord_members if m['nickname'] == nickname), None)
 
         # Prepare the entry
         entry = {
-            'label': name,
-            'value': matched_member['user_id'] if matched_member else 'Not matched',
+            'label': nickname,
+            'value': matched_member['user_id'] if matched_member else 'Not matched',  # No @
             'phone': phone if phone else '',  # Leave blank if phone is not provided
-            'username': matched_member['user_id'] if matched_member else 'Not matched'
+            'username': matched_member['username'] if matched_member else 'Not matched'  # With @
         }
         output_data.append(entry)
 

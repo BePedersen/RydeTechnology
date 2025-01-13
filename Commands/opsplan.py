@@ -5,21 +5,46 @@ from discord.ui import Select, View
 from asyncio import TimeoutError
 import random
 from datetime import datetime
+import logging
+
+intents = discord.Intents.default()
+intents.messages = True  # Allow reading messages
+intents.message_content = True  # Allow access to message content
+intents.guilds = True  # Allow interaction within guilds
+intents.members = True  # Enable fetching member details
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)  # Set to DEBUG to see all log messages
 
 # Function to read CSV
+# Function to read names from a CSV file
 def read_csv(file_path):
     options = []
+    logging.debug(f"Attempting to read CSV file: {file_path}")
     try:
         with open(file_path, mode='r', encoding='utf-8') as file:
             csv_reader = csv.DictReader(file)
             for row in csv_reader:
+                label = row.get('label', '').strip()
+                value = row.get('value', '').strip()
+                phone = row.get('phone', '').strip()  # Add phone reading
+
+
+                # Ensure label and value meet the 5-character minimum requirement
+                if len(label) < 5:
+                    label = label.ljust(5, '_')  # Pad with underscores if too short
+                if len(value) < 5:
+                    value = value.ljust(5, '_')  # Pad with underscores if too short
+
                 options.append({
-                    'label': row['label'],        # Person's name
-                    'value': row['value'],        # Identifier or shift code
-                    'phone': row.get('phone', 'Not provided'),  # Phone number
+                    'label': label,
+                    'value': value,
+                    'phone': phone
                 })
+                logging.debug(f"Processed option: Label={label}, Value={value}")
+            logging.info(f"Read {len(options)} names from {file_path}")
     except Exception as e:
-        print(f"Error reading CSV: {e}")
+        logging.error(f"Error reading CSV {file_path}: {e}")
     return options
 
 # Helper to format places list with "and" between the last two cities
@@ -45,9 +70,12 @@ class Dropdown(Select):
     def __init__(self, placeholder, options, callback, multiple=False):
         super().__init__(
             placeholder=placeholder,
-            options=[discord.SelectOption(label=opt['label'], value=opt['value']) for opt in options],
+            options=[
+                discord.SelectOption(label=opt['label'], value=opt['value'])
+                for opt in options
+            ],
             min_values=1,
-            max_values=5 if multiple else 1  # Allow up to 5 selections
+            max_values=len(options) if multiple else 1  # Allow multiple selections if `multiple=True`
         )
         self.custom_callback = callback
 
@@ -73,7 +101,7 @@ async def read_chat(ctx, prompt_message, timeout=60):
         )
         return message.content
     except TimeoutError:
-        await ctx.send("No response received within the time limit. Skipping this step.")
+        msg = await ctx.send("No response received within the time limit. Skipping this step.")
         return None
 
 # The opsplan function
@@ -89,24 +117,35 @@ async def opsplan(ctx):
         selected_goal_percentage = None
         selected_days_inactive = None
 
-        # People selection callback
+        # List to store messages sent by the bot
+        bot_messages = []
+
         async def people_callback(interaction):
-            selected_people.extend(interaction.data['values'])
-            await interaction.response.send_message(f"You selected: {', '.join(selected_people)} (People)", ephemeral=True)
+            selected_people.extend(
+                [option['label'] for option in people_options if option['value'] in interaction.data['values']]
+            )  # Extract only labels for selected people
+            msg = await interaction.response.send_message(
+                f"You selected: {', '.join(selected_people)} (People)", ephemeral=True
+            )
+            bot_messages.append(msg)
 
             if selected_people:
-                await ctx.send("Now, assign places for each selected person.")
+                msg = await ctx.send("Now, assign places for each selected person.")
+                bot_messages.append(msg)
                 await create_places_dropdowns()
 
         # Places selection callback
         async def place_callback(interaction, person):
             places = [value for value in interaction.data['values']]  # Extract only city names
             selected_places[person] = places
-            await interaction.response.send_message(f"{person} will drive to {format_places_list(places)}", ephemeral=True)
+
+            msg = await interaction.response.send_message(f"{person} will drive to {format_places_list(places)}", ephemeral=True)
+            bot_messages.append(msg)
 
             # Check if all places are assigned
             if len(selected_places) == len(selected_people):
-                await ctx.send("Drivers and places have been assigned. Now, configure additional settings.")
+                msg = await ctx.send("Drivers and places have been assigned. Now, configure additional settings.")
+                bot_messages.append(msg)
                 await create_additional_settings_dropdowns()
 
         # Create dropdowns for each person
@@ -131,7 +170,8 @@ async def opsplan(ctx):
 
             # Create a view with all place dropdowns
             view = DropdownView(ctx, dropdowns)
-            await ctx.send("Assign places for each selected person:", view=view)
+            msg = await ctx.send("Assign places for each selected person:", view=view)
+            bot_messages.append(msg)
 
         # Create dropdowns for additional settings
         async def create_additional_settings_dropdowns():
@@ -142,22 +182,24 @@ async def opsplan(ctx):
             async def percentage_callback(interaction):
                 nonlocal selected_percentage
                 selected_percentage = int(interaction.data['values'][0])
-                await interaction.response.send_message(f"Selected percentage: {selected_percentage}%", ephemeral=True)
-
+                msg = await interaction.response.send_message(f"Selected percentage: {selected_percentage}%", ephemeral=True)
+                bot_messages.append(msg)
+                
             async def goal_percentage_callback(interaction):
                 nonlocal selected_goal_percentage
                 selected_goal_percentage = int(interaction.data['values'][0])
-                await interaction.response.send_message(f"Selected goal percentage: {selected_goal_percentage}%", ephemeral=True)
+                msg = await interaction.response.send_message(f"Selected goal percentage: {selected_goal_percentage}%", ephemeral=True)
+                bot_messages.append(msg)
 
             async def days_inactive_callback(interaction):
                 nonlocal selected_days_inactive
                 selected_days_inactive = int(interaction.data['values'][0])
-                await interaction.response.send_message(f"Selected days inactive: {selected_days_inactive} days", ephemeral=True)
+                msg = await interaction.response.send_message(f"Selected days inactive: {selected_days_inactive} days", ephemeral=True)
+                bot_messages.append(msg)
 
                 # Once all settings are configured, prompt for additional comments
                 additional_comment = await read_chat(
-                    ctx,
-                    "If you have additional notes or instructions, please type them in the chat below. You have 60 seconds:"
+                    ctx,"If you have additional notes or instructions, please type them in the chat below. You have 60 seconds:"
                 )
                 await send_final_message(additional_comment)
 
@@ -186,59 +228,89 @@ async def opsplan(ctx):
                     + "\n".join(
                         [
                             f"- {person} {random.choice(random_phrases)} {format_places_list(places)}"
-                            for person, places in selected_places.items()
+                            for person, places in selected_places.items()  # Use the list of labels (people)
                         ]
                     )
-                    + "\n\n📊 **Operational Notes**:\n"
+                    + "\n\n🕰 **Operational Notes**:\n"
                     f"- **Inactivity**: 🔄 {selected_percentage}% inactive for {selected_days_inactive} days.\n"
                     f"- **Clusters**: {selected_percentage + 10}% in clusters.\n"
-                    f"- **Redeployment**: 📉 {selected_percentage + 15}% on inactives.\n\n"
+                    f"- **Redeployment**: 🔽 {selected_percentage + 15}% on inactives.\n\n"
                     "📞 **Contact**:\n"
                     + "\n".join(
-                        [
-                            f"• {name}: {phone}"
-                            for name, phone in person_details.items()
-                            if name in selected_places.keys()
-                        ]
+                    [
+                        f"• {name}: {phone}"
+                        for name, phone in person_details.items()
+                        if name in selected_places.keys()
+                    ]
                     )
                     + f"\n\n **Comment**:\n{comment or 'No additional comment'}\n\n"
-                    "🪫🪫 **Battery Check** 🔋🔋 \n"
+                    "🔋🔋 **Battery Check** 🔋🔋 \n"
                     "Make sure you're charged up and ready to go! \n"
                 )
+
+                # Delete all bot messages
+                for msg in bot_messages:
+                    try:
+                        await msg.delete()
+                    except Exception as e:
+                        logging.warning(f"Failed to delete message: {e}")
+
                 await ctx.send(shift_plan_message)
 
             # Create dropdowns
             percentage_dropdown = Dropdown(
                 placeholder="Select percentage",
                 options=generate_percentage_options(),
-                callback=percentage_callback
+                callback=percentage_callback,
+                multiple=False  # Explicitly specify only one answer
             )
 
             goal_percentage_dropdown = Dropdown(
                 placeholder="Select goal percentage",
                 options=generate_goal_percentage_options(),
-                callback=goal_percentage_callback
+                callback=goal_percentage_callback,
+                multiple=False  # Explicitly specify only one answer
             )
 
             days_inactive_dropdown = Dropdown(
                 placeholder="Select days inactive",
                 options=generate_days_options(),
-                callback=days_inactive_callback
+                callback=days_inactive_callback,
+                multiple=False  # Explicitly specify only one answer
             )
 
             # Create a view with the dropdowns
             view = DropdownView(ctx, [percentage_dropdown, goal_percentage_dropdown, days_inactive_dropdown])
-            await ctx.send("Please configure additional settings using the dropdowns below:", view=view)
+            msg = await ctx.send("Please configure additional settings using the dropdowns below:", view=view)
+            bot_messages.append(msg)
 
-        # Create a dropdown for selecting people
-        people_dropdown = Dropdown(
-            "Select people",
-            [{'label': opt['label'], 'value': opt['label']} for opt in people_options],
-            people_callback,
-            multiple=True
+        dropdown_options = [
+            discord.SelectOption(
+                label=opt['label'],
+                value=opt['value'],
+            )
+            for opt in people_options
+        ]
+
+        # Log the processed dropdown options
+        logging.debug(f"Sanitized dropdown options: {dropdown_options}")
+
+        # Create the dropdown
+        people_dropdown = Select(
+            placeholder="Select people",
+            options=dropdown_options,  # Pass sanitized options
+            min_values=1,
+            max_values=len(dropdown_options) if len(dropdown_options) > 0 else 1,
         )
-        view = DropdownView(ctx, [people_dropdown])
-        await ctx.send("Please select the people first:", view=view)
+        people_dropdown.callback = people_callback  # Attach the callback
+
+        # Create the view and add the dropdown
+        view = View()
+        view.add_item(people_dropdown)
+        msg = await ctx.send("Please select the people first:", view=view)
+        bot_messages.append(msg)
 
     except Exception as e:
-        await ctx.send(f"An error occurred: {e}")
+        logging.error(f"An error occurred: {e}")
+        msg = await ctx.send(f"An error occurred: {e}")
+        bot_messages.append(msg)

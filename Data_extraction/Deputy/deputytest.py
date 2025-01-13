@@ -60,7 +60,7 @@ def get_access_token():
 def test_timesheet_access():
     """Uses the access token to query the timesheet data and saves it to a CSV file."""
     url_variations = [
-        "https://rydetechnology.eu.deputy.com/api/v1/resource/Timesheet/QUERY",
+        "https://rydetechnology.eu.deputy.com/api/v1/resource/Roster/QUERY",
     ]
     
     headers = {
@@ -104,15 +104,19 @@ def test_timesheet_access():
             for item in data:
                 dp_metadata = item.get("_DPMetaData", {})
                 operational_unit_info = dp_metadata.get("OperationalUnitInfo", {})
-                company_name = operational_unit_info.get("CompanyName")
-                
+                company_name = operational_unit_info.get("CompanyName", {})
+
                 # Check for 'Bergen' in CompanyName and extract DisplayName
                 if company_name == "Bergen":
-                    display_name = dp_metadata.get("EmployeeInfo", {}).get("DisplayName")
-                    if display_name:
-                        display_names.append(display_name)
-                    else:
-                        print("DisplayName not found for item:", item)
+#                    display_name = dp_metadata.get("EmployeeInfo", {}).get("DisplayName")
+                    label_with_company = dp_metadata.get("OperationalUnitInfo", {}).get("LabelWithCompany")
+                    if label_with_company in ["[BRG] Operations", "[BRG] Night Shift", "[BRG] Operations Training/follow up"] :
+                        display_name = dp_metadata.get("EmployeeInfo", {}).get("DisplayName")
+                    
+                        if display_name:
+                            display_names.append(display_name)
+                        else:
+                            print("DisplayName not found for item:", item)
 
             # Check if filtered data is empty
             if not display_names:
@@ -120,17 +124,17 @@ def test_timesheet_access():
                 return None
 
             # Write the DisplayName data to a CSV file
-            csv_file = "employees_displaynames_bergen.csv"
+            csv_file = "/Users/benjaminpedersen/Downloads/RydeTechnology-Nemeth-test/Data/people_on_shift_ops.csv"
             with open(csv_file, mode="w", newline="") as file:
                 writer = csv.writer(file)
                 
                 # Write header
-                writer.writerow(["DisplayName"])
+                writer.writerow(["label"])
 
                 # Write each DisplayName as a new row
                 for name in display_names:
                     writer.writerow([name])
-
+  
             print(f"Data successfully written to {csv_file}")
             return csv_file  # Return the path to the CSV file
 

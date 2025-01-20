@@ -25,24 +25,38 @@ async def match_and_update(ctx, deputy_file, output_file):
     ]
     logging.info(f"Discord members in {guild.name}: {discord_members}")
 
-    # Read Stavanger_Deputy.csv
+    # Read the deputy file
     deputy_data = read_csv(deputy_file)
     logging.info(f"Read {len(deputy_data)} entries from {deputy_file}.")
 
     # Prepare the output data
     output_data = []
-
+    """
     for row in deputy_data:
         nickname = row['label']  # Nickname from Stavanger_Deputy.csv
-        phone = row.get('phone', '')  # Get phone if provided, otherwise empty
         matched_member = next((m for m in discord_members if m['nickname'] == nickname), None)
 
         # Prepare the entry
         entry = {
             'label': nickname,
             'value': matched_member['user_id'] if matched_member else 'Not matched',  # No @
-            'phone': phone if phone else '',  # Leave blank if phone is not provided
             'username': matched_member['username'] if matched_member else 'Not matched'  # With @
+        }
+        output_data.append(entry)"""
+    
+    for index, row in enumerate(deputy_data):
+        nickname = row['label']  # Nickname from the CSV
+        matched_member = next((m for m in discord_members if m['nickname'] == nickname), None)
+
+        # Generate a unique value if no match is found
+        value = matched_member['user_id'] if matched_member else f"unmatched_{index}"
+        username = matched_member['username'] if matched_member else "Not matched"
+
+        # Prepare the entry
+        entry = {
+            'label': nickname,
+            'value': value,  # Unique ID for dropdown
+            'username': username
         }
         output_data.append(entry)
 
@@ -50,7 +64,7 @@ async def match_and_update(ctx, deputy_file, output_file):
     logging.debug(f"Data to write to {output_file}: {output_data}")
 
     # Write to the specified output file
-    write_csv(output_file, output_data, fieldnames=['label', 'value', 'phone', 'username'])
+    write_csv(output_file, output_data, fieldnames=['label', 'value', 'username'])
     logging.info(f"Data written to {output_file} successfully.")
 
 def read_csv(file_path):

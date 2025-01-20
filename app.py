@@ -7,6 +7,9 @@ from Commands.opsplan import opsplan
 from Commands.mechplan import mechplan
 from Commands.edit import save_message, edit_last_message  # Import from edit.py
 from Data_extraction.Deputy.match_names_from_deputy import match_and_update
+from Data_extraction.Deputy.update_ops_on_shift import update_ops
+from Data_extraction.Deputy.update_mech_on_shift import update_mech
+
 
 # Load environment variables
 load_dotenv()
@@ -24,12 +27,10 @@ intents.members = True
 # Initialize the bot
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-async def prepare_data(ctx, output_file):
+async def prepare_data(ctx,deputy_file, output_file):
     """
     Prepare data before executing commands.
     """
-    deputy_file = 'Data/Deputy/Stavanger_Deputy.csv'
-
     try:
         logging.info("Preparing data...")
         await match_and_update(ctx, deputy_file, output_file)
@@ -43,8 +44,10 @@ async def opsplan_command(ctx):
     """
     Execute the opsplan functionality.
     """
+    update_ops()
+    deputy_file = 'Data/Deputy/Bergen_ops.csv'
     output_file = 'Data/people_on_shift_ops.csv'
-    await prepare_data(ctx, output_file)
+    await prepare_data(ctx,deputy_file, output_file)
 
     try:
         bot_message = await ctx.send("This is your opsplan!")
@@ -59,8 +62,10 @@ async def mechplan_command(ctx):
     """
     Execute the mechplan functionality.
     """
+    update_mech()
+    deputy_file = 'Data/Deputy/Bergen_mech.csv'
     output_file = 'Data/people_on_shift_mech.csv'
-    await prepare_data(ctx, output_file)
+    await prepare_data(ctx,deputy_file, output_file)
 
     try:
         bot_message = await ctx.send("This is your mechplan!")

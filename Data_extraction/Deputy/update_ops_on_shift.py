@@ -18,6 +18,7 @@ ENV_PATH = '.env'  # Path to your .env file
 
 def update_env_variable(key, value):
     """Updates the specified key-value pair in the .env file."""
+    print(f"Updating {key} in .env with value: {value}")  # Debug log
     set_key(ENV_PATH, key, value)
 
 def get_access_token():
@@ -124,7 +125,7 @@ def test_timesheet_access():
                 return None
 
             # Write the DisplayName data to a CSV file
-            csv_file = "/Users/benjaminpedersen/Downloads/RydeTechnology-Nemeth-test/Data/people_on_shift_ops.csv"
+            csv_file = "Data/Deputy/Bergen_ops.csv"
             with open(csv_file, mode="w", newline="") as file:
                 writer = csv.writer(file)
                 
@@ -146,7 +147,13 @@ def test_timesheet_access():
     print("No valid timesheet endpoint found.")
     return None
 
-def main():
+def update_ops():
+    # Load environment variables from .env file
+    load_dotenv(override=True)
+    global ACCESS_TOKEN, REFRESH_TOKEN
+    ACCESS_TOKEN = os.getenv("ACCESS_TOKEN")
+    REFRESH_TOKEN = os.getenv("REFRESH_TOKEN")
+
     # Get new tokens if necessary
     if not ACCESS_TOKEN or not REFRESH_TOKEN:
         get_access_token()
@@ -155,6 +162,3 @@ def main():
     if ACCESS_TOKEN:
         get_access_token()
         test_timesheet_access()
-
-if __name__ == "__main__":
-    main()

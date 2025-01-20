@@ -18,28 +18,23 @@ logging.basicConfig(level=logging.DEBUG)  # Set to DEBUG to see all log messages
 
 # Function to read CSV
 # Function to read names from a CSV file
+
+
 def read_csv(file_path):
     options = []
     logging.debug(f"Attempting to read CSV file: {file_path}")
     try:
         with open(file_path, mode='r', encoding='utf-8') as file:
             csv_reader = csv.DictReader(file)
-            for row in csv_reader:
+            for index, row in enumerate(csv_reader):
                 label = row.get('label', '').strip()
-                value = row.get('value', '').strip()
-                phone = row.get('phone', '').strip()  # Add phone reading
-
-
-                # Ensure label and value meet the 5-character minimum requirement
-                if len(label) < 5:
-                    label = label.ljust(5, '_')  # Pad with underscores if too short
-                if len(value) < 5:
-                    value = value.ljust(5, '_')  # Pad with underscores if too short
+                value = row.get('value', '').strip() or f"generated_value_{index}"  # Generate unique value if missing
+                username = row.get('username', '').strip() 
 
                 options.append({
                     'label': label,
                     'value': value,
-                    'phone': phone
+                    'username': username
                 })
                 logging.debug(f"Processed option: Label={label}, Value={value}")
             logging.info(f"Read {len(options)} names from {file_path}")
@@ -50,12 +45,12 @@ def read_csv(file_path):
 # Helper to format places list with "and" between the last two cities
 def format_places_list(places):
     if len(places) > 1:
-        return f"{', '.join(places[:-1])} and {places[-1]}"
+        return f"{', '.join(places[:-1])} så {places[-1]}"
     return places[0]
 
 # Generate percentage options for general usage
 def generate_percentage_options():
-    return [{'label': f"{i}%", 'value': str(i)} for i in range(20, 45, 5)]
+    return [{'label': f"{i}%", 'value': str(i)} for i in range(25, 55, 5)]
 
 # Generate percentage options for goals, ensuring they do not overlap with general percentages
 def generate_goal_percentage_options():
@@ -63,7 +58,7 @@ def generate_goal_percentage_options():
 
 # Generate days inactive options
 def generate_days_options():
-    return [{'label': f"{i} days", 'value': str(i)} for i in range(1, 6, 1)]
+    return [{'label': f"{i / 2:.1f} days", 'value': f"{i / 2:.1f}"} for i in range(1, 9)]
 
 # Dropdown and View classes
 class Dropdown(Select):
@@ -104,12 +99,25 @@ async def read_chat(ctx, prompt_message, timeout=60):
         msg = await ctx.send("No response received within the time limit. Skipping this step.")
         return None
 
+def update_skiftleder_csv(file_path, skiftleder_name):
+    """Creates or overwrites the skiftleder.csv file with the current skiftleder name."""
+    with open(file_path, mode='w', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        
+        # Write the header
+        writer.writerow(['Skiftleder'])
+        
+        # Write the current skiftleder's name
+        writer.writerow([skiftleder_name])
+        logging.info(f"Skiftleder {skiftleder_name} written to {file_path}")
+
+
 # The opsplan function
 async def opsplan(ctx):
     try:
         # Load data from CSV files
         people_options = read_csv('Data/people_on_shift_ops.csv')
-        places_options = read_csv('Data/Stavanger.csv')
+        places_options = read_csv('Data/Bergen_areas.csv')
 
         selected_people = []
         selected_places = {}
@@ -136,18 +144,26 @@ async def opsplan(ctx):
 
         # Places selection callback
         async def place_callback(interaction, person):
-            places = [value for value in interaction.data['values']]  # Extract only city names
-            selected_places[person] = places
+            # Map selected dropdown `value`s back to their human-readable `label`s
+            places = [
+                next((opt['label'] for opt in places_options if f"{person}_{i}_{opt['value']}" == value), value)
+                for i, value in enumerate(interaction.data['values'])
+            ]
+            selected_places[person] = places  # Store the mapped labels for the selected places
 
-            msg = await interaction.response.send_message(f"{person} will drive to {format_places_list(places)}", ephemeral=True)
-            bot_messages.append(msg)
+            logging.debug(f"Updated selected_places: {selected_places}")
+
+            # Respond with the correctly formatted message
+            await interaction.response.send_message(
+                f"{person} will drive to {format_places_list(places)}", ephemeral=True
+            )
 
             # Check if all places are assigned
             if len(selected_places) == len(selected_people):
-                msg = await ctx.send("Drivers and places have been assigned. Now, configure additional settings.")
-                bot_messages.append(msg)
+                logging.info("All places have been assigned. Moving to the next step.")
+                await ctx.send("Drivers and places have been assigned. Now, configure additional settings.")
                 await create_additional_settings_dropdowns()
-
+        
         # Create dropdowns for each person
         async def create_places_dropdowns():
             dropdowns = []
@@ -172,12 +188,40 @@ async def opsplan(ctx):
             view = DropdownView(ctx, dropdowns)
             msg = await ctx.send("Assign places for each selected person:", view=view)
             bot_messages.append(msg)
+        
+        async def create_places_dropdowns():
+            dropdowns = []
 
+            for person in selected_people:
+                # Generate unique dropdown values
+                person_places_options = [
+                    {"label": opt["label"], "value": f"{person}_{opt['value']}"}
+                    for opt in places_options
+                ]
+
+                # Log the generated options
+                logging.debug(f"Dropdown options for {person}: {person_places_options}")
+
+                dropdown = Dropdown(
+                    placeholder=f"Where should {person} drive?",
+                    options=person_places_options,
+                    callback=lambda interaction, p=person: place_callback(interaction, p),
+                    multiple=True
+                )
+                dropdowns.append(dropdown)
+
+            if not dropdowns:
+                logging.error("No dropdowns created. Check selected_people and places_options.")
+                await ctx.send("No places available to assign. Please try again.")
+                return
+
+            view = DropdownView(ctx, dropdowns)
+            msg = await ctx.send("Assign places for each selected person:", view=view)
+            bot_messages.append(msg)
+            
         # Create dropdowns for additional settings
         async def create_additional_settings_dropdowns():
             nonlocal selected_percentage, selected_goal_percentage, selected_days_inactive
-            additional_comment = None  # To store the user's additional comment
-            random_phrases = ["kjører til", "fikser", "order"]  # Random action phrases
 
             async def percentage_callback(interaction):
                 nonlocal selected_percentage
@@ -193,7 +237,7 @@ async def opsplan(ctx):
 
             async def days_inactive_callback(interaction):
                 nonlocal selected_days_inactive
-                selected_days_inactive = int(interaction.data['values'][0])
+                selected_days_inactive = float(interaction.data['values'][0])
                 msg = await interaction.response.send_message(f"Selected days inactive: {selected_days_inactive} days", ephemeral=True)
                 bot_messages.append(msg)
 
@@ -205,57 +249,75 @@ async def opsplan(ctx):
 
             # Final message function
             async def send_final_message(comment):
-                # Match names to phone numbers
-                person_details = {person['label']: person['phone'] for person in people_options}
+
+                # Create a mapping of `label` to `username` (Discord IDs)
+                label_to_username = {row['label']: row['username'] for row in people_options}
+                
+                # Map dropdown values back to labels
+                value_to_label = {f"{person}_{opt['value']}": opt['label'] for opt in places_options for person in selected_places}
+
+                formatted_places = {
+                    person: [
+                        value_to_label.get(value, value)  # Use the label if found, fallback to value
+                        for value in places
+                    ]
+                    for person, places in selected_places.items()
+                }
+
+                logging.debug(f"Formatted places for final message: {formatted_places}")
 
                 now = datetime.now()
-                current_hour = now.hour
                 date_string = now.strftime("%d.%m.%Y")
 
-                if 6 <= current_hour < 14:
-                    shift_text = f"🌅 Morgenskift {date_string} 🌅"
-                elif 14 <= current_hour < 22:
-                    shift_text = f"🌄 Kveldskift {date_string} 🌄"
-                else:
-                    shift_text = f"🌠 Nattskift {date_string} 🌠"
+                shift_text = (
+                    f"🌅 Tidligskift {date_string} 🌅" if 6 <= now.hour < 14 else
+                    f"🌄 Kveldskift {date_string} 🌄" if 14 <= now.hour < 22 else
+                    f"🌠 Natteskift {date_string} 🌠"
+                )
 
                 shift_plan_message = (
                     f"{shift_text}\n\n"
-                    f"Skiftleder: {ctx.author.name}\n\n"
+                    f"**Skiftleder: {ctx.author.display_name}**\n\n"
                     f" **Goal** \n"
                     f"- Availability: 🎯 {selected_goal_percentage}%\n\n"
                     "🚦 **Team and Areas**:\n"
                     + "\n".join(
                         [
-                            f"- {person} {random.choice(random_phrases)} {format_places_list(places)}"
-                            for person, places in selected_places.items()  # Use the list of labels (people)
+                            f"- <{label_to_username.get(person, person)}> {random.choice(['kjører', 'fikser', 'ordner', 'cleaner','redder', 'går crazy på', 'gønner'])} {format_places_list(places)}"
+                            for person, places in formatted_places.items()
                         ]
                     )
-                    + "\n\n🕰 **Operational Notes**:\n"
-                    f"- **Inactivity**: 🔄 {selected_percentage}% inactive for {selected_days_inactive} days.\n"
-                    f"- **Clusters**: {selected_percentage + 10}% in clusters.\n"
-                    f"- **Redeployment**: 🔽 {selected_percentage + 15}% on inactives.\n\n"
-                    "📞 **Contact**:\n"
-                    + "\n".join(
-                    [
-                        f"• {name}: {phone}"
-                        for name, phone in person_details.items()
-                        if name in selected_places.keys()
-                    ]
-                    )
-                    + f"\n\n **Comment**:\n{comment or 'No additional comment'}\n\n"
+                    + "\n\n📋 **Operational Notes**:\n"
+                    f"- **Inaktive**: {selected_days_inactive} days\n"
+                    f"- **Klynger**: {selected_percentage + 10}% i klynger\n"
+                    f"- **Redeploy**: {selected_percentage + 15}% på inactive\n\n"
+                    "**Reminders:**\n"
+                    "**Husk Use Car🚗**\n"
+                    "**God QC**\n"
+                    "**Ta med deploys fra lageret**\n\n"
+                    "**If you have any questions:**\n"
+                    "Contact skiftleder over Discord through the voice channel or tag skiftleder and write a message in this chat.\n\n"
+                    f" **Comment**:\n{comment or 'No additional comment'}\n\n"
                     "🔋🔋 **Battery Check** 🔋🔋 \n"
                     "Make sure you're charged up and ready to go! \n"
                 )
 
-                # Delete all bot messages
-                for msg in bot_messages:
-                    try:
-                        await msg.delete()
-                    except Exception as e:
-                        logging.warning(f"Failed to delete message: {e}")
 
-                await ctx.send(shift_plan_message)
+                # Fetch pinned messages and unpin the previous one, if any
+                pinned_messages = await ctx.channel.pins()
+                for pinned_msg in pinned_messages:
+                    if pinned_msg.author == ctx.me:  # Check if the pinned message belongs to the bot
+                        await pinned_msg.unpin()
+                        logging.info(f"Unpinned messages")
+
+                # Send the final message and pin it
+                final_msg = await ctx.send(shift_plan_message)
+                await final_msg.pin()
+                logging.info(f"Pinned the new message")
+
+                # Overwrite the skiftleder.csv file with the current skiftleder's name
+                update_skiftleder_csv('Data/skiftleder.csv', ctx.author.display_name)
+
 
             # Create dropdowns
             percentage_dropdown = Dropdown(

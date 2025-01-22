@@ -164,31 +164,6 @@ async def opsplan(ctx):
                 await ctx.send("Drivers and places have been assigned. Now, configure additional settings.")
                 await create_additional_settings_dropdowns()
         
-        # Create dropdowns for each person
-        async def create_places_dropdowns():
-            dropdowns = []
-            for person in selected_people:
-                person_places_options = [
-                    {
-                        'label': opt['label'],  # City name
-                        'value': opt['value']  # Unique value for the city
-                    }
-                    for opt in places_options
-                ]
-
-                dropdown = Dropdown(
-                    placeholder=f"Where should {person} drive?",
-                    options=person_places_options,
-                    callback=lambda interaction, p=person: place_callback(interaction, p),
-                    multiple=True  # Allow multiple places to be selected
-                )
-                dropdowns.append(dropdown)
-
-            # Create a view with all place dropdowns
-            view = DropdownView(ctx, dropdowns)
-            msg = await ctx.send("Assign places for each selected person:", view=view)
-            bot_messages.append(msg)
-        
         async def create_places_dropdowns():
             dropdowns = []
 
@@ -303,6 +278,11 @@ async def opsplan(ctx):
                     "Make sure you're charged up and ready to go! \n"
                 )
 
+                for msg in bot_messages:
+                    try:
+                        await msg.delete()
+                    except Exception as e:
+                        logging.warning(f"Failed to delete message: {e}")
 
                 # Fetch pinned messages and unpin the previous one, if any
                 pinned_messages = await ctx.channel.pins()

@@ -3,6 +3,7 @@ import discord
 from discord.ext import commands
 from discord.ui import Select, View
 from asyncio import TimeoutError
+import asyncio
 import logging
 from datetime import datetime
 
@@ -11,6 +12,22 @@ intents.messages = True  # Allow reading messages
 intents.message_content = True  # Allow access to message content
 intents.guilds = True  # Allow interaction within guilds
 intents.members = True  # Enable fetching member details
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)  # Set to DEBUG to see all log messages
+
+# List to store messages sent by the bot
+bot_messages_global = []
+
+# Function to delete messages after 5 minutes
+async def delete_messages_after_delay():
+    await asyncio.sleep(30)  # Wait for 300 seconds (5 minutes)
+    for msg in bot_messages_global:
+        try:
+            await msg.delete()
+        except Exception as e:
+            logging.warning(f"Failed to delete message: {e}")
+    bot_messages_global.clear()  # Clear the list after deletion
 
 # Function to read CSV files
 def read_csv(file_path):
@@ -21,7 +38,7 @@ def read_csv(file_path):
             for row in csv_reader:
                 options.append({
                     'label': row['label'].strip(),
-                    'value': row['value'].strip()
+                    'value': row['value'].strip(),
                 })
     except Exception as e:
         logging.error(f"Error reading CSV {file_path}: {e}")
@@ -37,7 +54,7 @@ class Dropdown(Select):
                 for opt in options
             ],
             min_values=1,
-             max_values=len(options) if len(options) < 5 else 5  # Adjust for fewer options
+             max_values=len(options) if len(options) < 10 else 10  # Adjust for fewer options
         )
         self.custom_callback = callback
 
@@ -71,7 +88,8 @@ async def read_chat(ctx, prompt_message, timeout=60):
         )
         return message.content
     except TimeoutError:
-        await ctx.send("No response received within the time limit. Proceeding without additional input.")
+        msg = await ctx.send("No response received within the time limit. Proceeding without additional input.")
+        bot_messages_global.append(msg)
         return None
 
 # Main mechplan function
@@ -82,11 +100,11 @@ async def mechplan(ctx):
         people_options = read_csv('Data/people_on_shift_mech.csv')
 
         if not tasks_options:
-            await ctx.send("No tasks found in tasks_mech.csv. Please check the file.")
+            logging.error("No tasks found in tasks_mech.csv. Please check the file.")
             return
 
         if not people_options:
-            await ctx.send("No people found in people_on_shift_mech.csv. Please check the file.")
+            logging.error("No people found in people_on_shift_mech.csv. Please check the file.")
             return
 
         task_assignments = {}
@@ -99,8 +117,10 @@ async def mechplan(ctx):
 
         # Step 1: Ask for the goal of the day
         goal_for_day = await read_chat(ctx, "What is the goal for the day? Please type it in the chat below.")
+        bot_messages_global.append(goal_for_day)
         if not goal_for_day:
             goal_for_day = "No specific goal provided."
+            bot_messages_global.append(goal_for_day)
 
         # Step 2: Select tasks
         async def task_callback(interaction):
@@ -171,6 +191,7 @@ async def mechplan(ctx):
         async def ask_for_additional_comment():
             nonlocal additional_comment
             additional_comment = await read_chat(ctx, "If you have additional notes or instructions, please type them below.")
+            bot_messages_global.append(additional_comment)
             await send_final_message()
 
         # Step 5: Send final message
@@ -178,9 +199,6 @@ async def mechplan(ctx):
             now = datetime.now()
             current_hour = now.hour
             date_string = now.strftime("%d.%m.%Y")
-
-            # Create a mapping of `label` to `username` (Discord IDs)
-            label_to_username = {row['label']: row.get('username', row['label']) for row in people_options}
 
             if 6 <= current_hour < 14:
                 shift_text = f"🌅 Morgenskift {date_string} 🌅"
@@ -192,10 +210,9 @@ async def mechplan(ctx):
             assigned_tasks = "\n\n".join(
                 [
                     f"{next((opt['label'] for opt in tasks_options if opt['value'] == task), task)}: "
-                    f"{', '.join([f'@{label_to_username.get(person, person)}' for person in task_assignments.get(task, [])[:-1]])}"
-                    f"{' and ' if len(task_assignments.get(task, [])) > 1 else ''}"
-                    f"{f'@{label_to_username.get(task_assignments.get(task, [])[0], task_assignments.get(task, [])[0])}' if len(task_assignments.get(task, [])) == 1 else ''}"
-                    f"{f'@{label_to_username.get(task_assignments.get(task, [])[-1], task_assignments.get(task, [])[-1])}' if len(task_assignments.get(task, [])) > 1 else ''}"
+                    f"{', '.join([f'<@{opt["value"]}>' for opt in people_options if opt['label'] in task_assignments.get(task, [])][:-1]) if len(task_assignments.get(task, [])) > 1 else ''}"
+                    f"{f'<@{[opt["value"] for opt in people_options if opt["label"] in task_assignments.get(task, [])][0]}>' if len(task_assignments.get(task, [])) == 1 else ''}"
+                    f"{' and ' + f'<@{[opt["value"] for opt in people_options if opt["label"] in task_assignments.get(task, [])][-1]}>' if len(task_assignments.get(task, [])) > 1 else ''}"
                     for task in selected_tasks
                 ]
             )
@@ -206,15 +223,11 @@ async def mechplan(ctx):
                 f"{assigned_tasks}\n\n"
                 f"**Comment**: {additional_comment or 'No additional comment'}\n\n"
                 "\U0001F4CC Viktig\n\n"
-                "Ikke glem å kost under pult og sjekk at det ser fint ut på verkstedet før du går, "
-                "verkstedet skal ikke ha småting liggende rundt, legg alt på plass!\n"
-                "Det skal aldri være batts inne i lageret når alle har gått\n\n"
-                "Hvis har ansvar for rydding av pauserom eller mechstasjon, hå ned med avfall om nødvendig\n"
-                "Husk å skru av alle ovner når du går\n"
+                "Ikke glem å kost under pult og sjekk at det ser fint ut på verkstedet før dere går, "
+                "verkstedet skal ikke ha småting liggende rundt, legg alt på plass!\n\n"
                 "Husk jobs, kildesortering og legg til deler\U0001F4AA\n\n"
+                "NB! Pass på at verktøyet på tavlene ligger på rett plass med riktig farge! ⚪️⚫️🔵🔴🟢🟠 \n"
                 "Det er bare å spørre meg eller andre dersom dere skulle lure på noe\U0001F60A"
-                #mechplan
-                
             )
 
             # Delete all bot messages

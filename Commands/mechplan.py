@@ -179,6 +179,9 @@ async def mechplan(ctx):
             current_hour = now.hour
             date_string = now.strftime("%d.%m.%Y")
 
+            # Create a mapping of `label` to `username` (Discord IDs)
+            label_to_username = {row['label']: row.get('username', row['label']) for row in people_options}
+
             if 6 <= current_hour < 14:
                 shift_text = f"🌅 Morgenskift {date_string} 🌅"
             elif 14 <= current_hour < 22:
@@ -189,24 +192,29 @@ async def mechplan(ctx):
             assigned_tasks = "\n\n".join(
                 [
                     f"{next((opt['label'] for opt in tasks_options if opt['value'] == task), task)}: "
-                    f"{', '.join(task_assignments.get(task, [])[:-1]) if len(task_assignments.get(task, [])) > 1 else ''}"
-                    f"{task_assignments.get(task, [])[0] if len(task_assignments.get(task, [])) == 1 else ''}"
-                    f"{' and ' + task_assignments.get(task, [])[-1] if len(task_assignments.get(task, [])) > 1 else ''}"
+                    f"{', '.join([f'@{label_to_username.get(person, person)}' for person in task_assignments.get(task, [])[:-1]])}"
+                    f"{' and ' if len(task_assignments.get(task, [])) > 1 else ''}"
+                    f"{f'@{label_to_username.get(task_assignments.get(task, [])[0], task_assignments.get(task, [])[0])}' if len(task_assignments.get(task, [])) == 1 else ''}"
+                    f"{f'@{label_to_username.get(task_assignments.get(task, [])[-1], task_assignments.get(task, [])[-1])}' if len(task_assignments.get(task, [])) > 1 else ''}"
                     for task in selected_tasks
                 ]
             )
             final_message = (
                 f"{shift_text}\n\n"
-                f"Skiftleder: {ctx.author.name}\n\n"
+                f"Skiftleder: {ctx.author.display_name}\n\n"
                 f"\U0001F3AF Fokus for dagen: {goal_for_day}\n\n"
                 f"{assigned_tasks}\n\n"
                 f"**Comment**: {additional_comment or 'No additional comment'}\n\n"
                 "\U0001F4CC Viktig\n\n"
-                "Ikke glem å kost under pult og sjekk at det ser fint ut på verkstedet før dere går, "
-                "verkstedet skal ikke ha småting liggende rundt, legg alt på plass!\n\n"
+                "Ikke glem å kost under pult og sjekk at det ser fint ut på verkstedet før du går, "
+                "verkstedet skal ikke ha småting liggende rundt, legg alt på plass!\n"
+                "Det skal aldri være batts inne i lageret når alle har gått\n\n"
+                "Hvis har ansvar for rydding av pauserom eller mechstasjon, hå ned med avfall om nødvendig\n"
+                "Husk å skru av alle ovner når du går\n"
                 "Husk jobs, kildesortering og legg til deler\U0001F4AA\n\n"
-                "NB! Pass på at verktøyet på tavlene ligger på rett plass med riktig farge! ⚪️⚫️🔵🔴🟢🟠"
                 "Det er bare å spørre meg eller andre dersom dere skulle lure på noe\U0001F60A"
+                #mechplan
+                
             )
 
             # Delete all bot messages

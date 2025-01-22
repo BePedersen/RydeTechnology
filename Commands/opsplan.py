@@ -294,6 +294,7 @@ async def opsplan(ctx):
                     "**Reminders:**\n"
                     "**Husk Use Car🚗**\n"
                     "**God QC**\n"
+                    "**Fiks Nivler innen en time**\n"
                     "**Ta med deploys fra lageret**\n\n"
                     "**If you have any questions:**\n"
                     "Contact skiftleder over Discord through the voice channel or tag skiftleder and write a message in this chat.\n\n"

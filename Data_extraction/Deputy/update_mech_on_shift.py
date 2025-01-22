@@ -111,7 +111,7 @@ def test_timesheet_access():
                 if company_name == "Bergen":
 #                    display_name = dp_metadata.get("EmployeeInfo", {}).get("DisplayName")
                     label_with_company = dp_metadata.get("OperationalUnitInfo", {}).get("LabelWithCompany")
-                    if label_with_company in ["[BRG] Mechanics", "[BRG] Shiftleader", "[BRG] Mechanics Training/follow up"] :
+                    if label_with_company in ["[BRG] Mechanics", "[BRG] Shiftleader", "[BRG] Mechanics Training/follow up", "[BRG] Management"] :
                         display_name = dp_metadata.get("EmployeeInfo", {}).get("DisplayName")
                     
                         if display_name:

@@ -112,6 +112,72 @@ def update_skiftleder_csv(file_path, skiftleder_name):
         logging.info(f"Skiftleder {skiftleder_name} written to {file_path}")
 
 
+
+async def update_skiftleder_roles(ctx):
+  
+    guild = ctx.guild
+    skiftleder_file = 'Data/skiftleder.csv'
+    role_name = "Nivel"
+    try:
+        # Read the Skiftleder file
+        with open(skiftleder_file, mode='r', encoding='utf-8') as file:
+            csv_reader = csv.DictReader(file)
+            # Expecting only one row for Skiftleder
+            row = next(csv_reader, None)
+            if not row:
+                logging.error(f"File '{skiftleder_file}' is empty or invalid.")
+                await ctx.send(f"File '{skiftleder_file}' is empty or invalid.")
+                return
+            
+            # Extract the name of the Skiftleder
+            skiftleder_name = row.get("Skiftleder", "").strip()
+            if not skiftleder_name:
+                logging.error(f"Skiftleder name not found in file '{skiftleder_file}'.")
+                await ctx.send(f"Skiftleder name not found in file '{skiftleder_file}'.")
+                return
+
+        # Find the role in the guild
+        role = discord.utils.get(guild.roles, name=role_name)
+        if not role:
+            logging.error(f"Role '{role_name}' not found in the server.")
+            await ctx.send(f"Role '{role_name}' not found in the server.")
+            return
+
+        # Find the member by name
+        member = discord.utils.get(guild.members, display_name=skiftleder_name)
+        if not member:
+            logging.warning(f"Skiftleder '{skiftleder_name}' not found in the server.")
+            await ctx.send(f"Skiftleder '{skiftleder_name}' not found in the server.")
+            return
+
+        try:
+            # Check if the bot's role is higher than the user's top role
+            if guild.me.top_role <= member.top_role:
+                logging.warning(f"Cannot update role for '{member.display_name}' due to hierarchy restrictions.")
+                await ctx.send(f"Cannot update role for '{member.display_name}' due to hierarchy restrictions.")
+                return
+
+            # Add the role
+            await member.add_roles(role)
+            logging.info(f"Role '{role_name}' assigned to '{member.display_name}'.")
+            await ctx.send(f"Role '{role_name}' assigned to '{member.display_name}'.")
+
+        except discord.Forbidden:
+            logging.error(f"Missing permissions to assign role '{role_name}' to '{member.display_name}'.")
+            await ctx.send(f"Missing permissions to assign role '{role_name}' to '{member.display_name}'.")
+        except Exception as e:
+            logging.error(f"An unexpected error occurred for user '{member.display_name}': {e}")
+            await ctx.send(f"An unexpected error occurred for user '{member.display_name}': {e}")
+
+    except FileNotFoundError:
+        logging.error(f"File '{skiftleder_file}' not found.")
+        await ctx.send(f"File '{skiftleder_file}' not found.")
+    except Exception as e:
+        logging.error(f"An unexpected error occurred: {e}")
+        await ctx.send(f"An unexpected error occurred: {e}")
+
+
+
 # The opsplan function
 async def opsplan(ctx):
     try:
@@ -258,11 +324,12 @@ async def opsplan(ctx):
                     "🚦 **Team and Areas**:\n"
                     + "\n".join(
                         [
-                            f"- <{label_to_username.get(person, person)}> {random.choice(['kjører', 'fikser', 'ordner', 'cleaner','redder', 'går crazy på', 'gønner'])} {format_places_list(places)}"
+                            f"- <{label_to_username.get(person, person)}> {random.choice(['kjører', 'fikser', 'ordner', 'cleaner','redder', 'går crazy på', 'gønner', 'swiper', 'går løs på', ''])} {format_places_list(places)}"
                             for person, places in formatted_places.items()
                         ]
                     )
                     + "\n\n📋 **Operational Notes**:\n"
+                    f"- **Vi kjører på:**: {selected_percentage }%\n"                    
                     f"- **Inaktive**: {selected_days_inactive} days\n"
                     f"- **Klynger**: {selected_percentage + 10}% i klynger\n"
                     f"- **Redeploy**: {selected_percentage + 15}% på inactive\n\n"
@@ -298,6 +365,7 @@ async def opsplan(ctx):
 
                 # Overwrite the skiftleder.csv file with the current skiftleder's name
                 update_skiftleder_csv('Data/skiftleder.csv', ctx.author.display_name)
+                await update_skiftleder_roles(ctx)
 
 
             # Create dropdowns

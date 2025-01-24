@@ -222,12 +222,16 @@ async def mechplan(ctx):
                 f"\U0001F3AF Fokus for dagen: {goal_for_day}\n\n"
                 f"{assigned_tasks}\n\n"
                 f"**Comment**: {additional_comment or 'No additional comment'}\n\n"
-                "\U0001F4CC Viktig\n\n"
-                "Ikke glem å kost under pult og sjekk at det ser fint ut på verkstedet før dere går, "
-                "verkstedet skal ikke ha småting liggende rundt, legg alt på plass!\n\n"
-                "Husk jobs, kildesortering og legg til deler\U0001F4AA\n\n"
-                "NB! Pass på at verktøyet på tavlene ligger på rett plass med riktig farge! ⚪️⚫️🔵🔴🟢🟠 \n"
-                "Det er bare å spørre meg eller andre dersom dere skulle lure på noe\U0001F60A"
+                "\U0001F4CC **Viktig**\n\n"
+                "**Ikke glem å kost under pult og sjekk at det ser fint ut på verkstedet før du går**\n"
+                "**Verkstedet skal ikke ha småting liggende rundt, legg alt på plass!**\n"
+                "**Det skal aldri være batts inne i lageret når alle har gått**\n\n"
+                "**Hvis har ansvar for rydding av pauserom eller mechstasjon, hå ned med avfall om nødvendig**\n"
+                "**Husk å skru av alle ovner når du går**\n"
+                "**Husk jobs, kildesortering og legg til deler**\n\n"
+                "**Det er bare å spørre skiftleder eller andre dersom dere skulle lure på noe**"
+                #mechplan
+                
             )
 
             # Delete all bot messages
@@ -237,7 +241,17 @@ async def mechplan(ctx):
                 except Exception as e:
                     logging.warning(f"Failed to delete message: {e}")
 
-            await ctx.send(final_message)
+        # Fetch pinned messages and unpin the previous one, if any
+            pinned_messages = await ctx.channel.pins()
+            for pinned_msg in pinned_messages:
+                if pinned_msg.author == ctx.me:  # Check if the pinned message belongs to the bot
+                    await pinned_msg.unpin()
+                    logging.info(f"Unpinned messages")
+
+            # Send the final message and pin it
+            final_msg = await ctx.send(final_message)
+            await final_msg.pin()
+            logging.info(f"Pinned the new message")
 
     except Exception as e:
         logging.error(f"Error in mechplan: {e}")

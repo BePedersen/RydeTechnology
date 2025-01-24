@@ -167,22 +167,33 @@ def test_timesheet_access():
             for item in data:
                 dp_metadata = item.get("_DPMetaData", {})
                 operational_unit_info = dp_metadata.get("OperationalUnitInfo", {})
-                company_name = operational_unit_info.get("CompanyName", {})
+                company_name = operational_unit_info.get("CompanyName", None)
 
                 # Check for 'Bergen' in CompanyName and extract DisplayName
                 if company_name == "Bergen":
-                    label_with_company = dp_metadata.get("OperationalUnitInfo", {}).get("LabelWithCompany")
+                    label_with_company = operational_unit_info.get("LabelWithCompany")
                     if label_with_company in ["[BRG] Operations", "[BRG] Night Shift", "[BRG] Operations Training/follow up", "[BRG] Management"]:
-                        display_name = dp_metadata.get("EmployeeInfo", {}).get("DisplayName")
-                        if display_name and display_name not in combined_display_names:  # Avoid duplicates
-                            combined_display_names.append(display_name)
+                        employee_info = dp_metadata.get("EmployeeInfo", {})
+                        
+                        # Handle if EmployeeInfo is a list
+                        if isinstance(employee_info, list):
+                            for info in employee_info:
+                                if isinstance(info, dict):
+                                    display_name = info.get("DisplayName")
+                                    if display_name and display_name not in combined_display_names:  # Avoid duplicates
+                                        combined_display_names.append(display_name)
+                        # Handle if EmployeeInfo is a dict
+                        elif isinstance(employee_info, dict):
+                            display_name = employee_info.get("DisplayName")
+                            if display_name and display_name not in combined_display_names:  # Avoid duplicates
+                                combined_display_names.append(display_name)
                         else:
-                            print("DisplayName not found or already added for item:", item)
-
+                            print("Unexpected EmployeeInfo format:", employee_info)
+                                    
         except requests.exceptions.RequestException as e:
             print(f"Error accessing timesheets at {url}:", e)
-            if response is not None:
-                print("Response content:", response.text)
+        if response is not None:
+            print("Response content:", response.text)
 
     # Write the combined DisplayName data to a CSV file
     if combined_display_names:

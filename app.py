@@ -49,13 +49,10 @@ async def opsplan_command(ctx):
     deputy_file = 'Data/Deputy/Bergen_ops.csv'
     output_file = 'Data/people_on_shift_ops.csv'
     await prepare_data(ctx,deputy_file, output_file)
-    try:       
-        #Pass ctx, deputy_file, and role_name explicitly to update_roles
-        #await update_roles(ctx, output_file, role_name='Operations')
-    
+    try:           
         bot_message = await ctx.send("This is your opsplan!")
         await save_message(ctx, bot_message)
-        await opsplan(ctx)
+        await opsplan(ctx)            
     except Exception as e:
         logging.error(f"Error in opsplan command: {e}")
         await ctx.send("An error occurred while processing opsplan. Please try again.")
@@ -70,10 +67,7 @@ async def mechplan_command(ctx):
     output_file = 'Data/people_on_shift_mech.csv'
     await prepare_data(ctx, deputy_file, output_file)
 
-    try:
-        # Pass ctx, deputy_file, and role_name explicitly to update_roles
-        #await update_roles(ctx, output_file, role_name='Mekanisk')
-        
+    try:        
         bot_message = await ctx.send("This is your mechplan!")
         await save_message(ctx, bot_message)
         await mechplan(ctx)
@@ -88,71 +82,27 @@ async def editplan_command(ctx, *, new_content=None):
     """
     await edit_last_message(ctx, new_content)
 
-async def update_roles(ctx, deputy_file: str, role_name: str):
+@bot.command(name='purge')
+@commands.has_permissions(manage_messages=True)  # Ensure the user has permission to manage messages
+async def clear_channel(ctx):
     """
-    Updates the roles of users in a Discord server based on a CSV file.
-
-    Args:
-        ctx: The command context.
-        deputy_file (str): Path to the CSV file containing 'label' (name) and 'username'.
-        role_name (str): The name of the role to assign.
+    Deletes all messages in the channel where the command is sent.
     """
-    guild = ctx.guild
-
     try:
-        # Read the deputy file
-        users = []
-        with open(deputy_file, mode='r', encoding='utf-8') as file:
-            csv_reader = csv.DictReader(file)
-            for row in csv_reader:
-                users.append({
-                    'name': row['label'].strip(),
-                    'value': row['value'].strip()
-                })
+        # Send a confirmation message before clearing messages
+        confirmation_message = await ctx.send("Clearing all messages in this channel...")
 
-        # Find the role in the guild
-        role = discord.utils.get(guild.roles, name=role_name)
-        if not role:
-            logging.error(f"Role '{role_name}' not found in the server.")
-            await ctx.send(f"Role '{role_name}' not found in the server.")
-            return
+        # Purge the channel
+        await ctx.channel.purge()
 
-        for user in users:
-            # Find member by username
-            member = guild.get_member_named(user['value'])
-            if not member:
-                logging.warning(f"User '{user['value']}' not found in the server.")
-                await ctx.send(f"User '{user['value']}' not found in the server.")
-                continue
-
-            try:
-                if role in member.roles:
-                    logging.info(f"User '{member.display_name}' already has the role '{role_name}'. Skipping.")
-                    continue
-
-                # Check if the bot's role is higher than the user's top role
-                if guild.me.top_role <= member.top_role:
-                    logging.warning(f"Cannot update role for '{member.display_name}' due to hierarchy restrictions. Skipping.")
-                    continue
-
-                # Add the role
-                await member.add_roles(role)
-                logging.info(f"Role '{role_name}' assigned to '{member.display_name}'.")
-                await ctx.send(f"Role '{role_name}' assigned to '{member.display_name}'.")
-
-            except discord.Forbidden:
-                logging.error(f"Missing permissions to assign role '{role_name}' to '{member.display_name}'.")
-                await ctx.send(f"Missing permissions to assign role '{role_name}' to '{member.display_name}'.")
-            except Exception as e:
-                logging.error(f"An unexpected error occurred for user '{member.display_name}': {e}")
-                await ctx.send(f"An unexpected error occurred for user '{member.display_name}': {e}")
-
-    except FileNotFoundError:
-        logging.error(f"File '{deputy_file}' not found.")
-        await ctx.send(f"File '{deputy_file}' not found.")
+        # Optionally, send a message after clearing (will delete itself)
+        confirmation = await ctx.send("Channel cleared successfully!")
+        await confirmation.delete(delay=5)  # Deletes the confirmation message after 5 seconds
+    except discord.Forbidden:
+        await ctx.send("I don't have permission to manage messages in this channel.")
     except Exception as e:
-        logging.error(f"An unexpected error occurred: {e}")
-        await ctx.send(f"An unexpected error occurred: {e}")
+        logging.error(f"Error clearing channel: {e}")
+        await ctx.send("An error occurred while clearing the channel.")
 
 if __name__ == "__main__":
     token = os.getenv("DISCORD_TOKEN")

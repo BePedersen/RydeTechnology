@@ -61,7 +61,9 @@ def get_access_token():
 def test_timesheet_access():
     """Uses the access token to query the timesheet data and saves it to a CSV file."""
     url_variations = [
-        "https://rydetechnology.eu.deputy.com/api/v1/resource/Roster/QUERY",
+        "https://rydetechnology.eu.deputy.com/api/v1/resource/Timesheet/QUERY",
+        "https://rydetechnology.eu.deputy.com/api/v1/resource/Roster/QUERY"
+
     ]
     
     headers = {
@@ -87,7 +89,8 @@ def test_timesheet_access():
         }
     }
   
-    
+    combined_display_names = []  # List to store all display names from all URL variations
+    """
     for url in url_variations:
         print(f"Trying URL: {url}")
         try:
@@ -109,7 +112,7 @@ def test_timesheet_access():
 
                 # Check for 'Bergen' in CompanyName and extract DisplayName
                 if company_name == "Bergen":
-#                    display_name = dp_metadata.get("EmployeeInfo", {}).get("DisplayName")
+                #display_name = dp_metadata.get("EmployeeInfo", {}).get("DisplayName")
                     label_with_company = dp_metadata.get("OperationalUnitInfo", {}).get("LabelWithCompany")
                     if label_with_company in ["[BRG] Mechanics", "[BRG] Shiftleader", "[BRG] Mechanics Training/follow up", "[BRG] Management"] :
                         display_name = dp_metadata.get("EmployeeInfo", {}).get("DisplayName")
@@ -145,7 +148,59 @@ def test_timesheet_access():
             print("Response content:", response.text)
 
     print("No valid timesheet endpoint found.")
-    return None
+    return None"""
+    for url in url_variations:
+        print(f"Trying URL: {url}")
+        try:
+            # Sending POST request with parameters
+            response = requests.post(url, headers=headers, data=json.dumps(payload))
+            response.raise_for_status()
+            data = response.json()  # Get the JSON response
+
+            # Check if data is empty
+            if not data:
+                print(f"No data found at {url}. Continuing to the next URL.")
+                continue  # Skip to the next URL
+
+            # Filter data for CompanyName 'Bergen' and extract DisplayName
+            for item in data:
+                dp_metadata = item.get("_DPMetaData", {})
+                operational_unit_info = dp_metadata.get("OperationalUnitInfo", {})
+                company_name = operational_unit_info.get("CompanyName", {})
+
+                # Check for 'Bergen' in CompanyName and extract DisplayName
+                if company_name == "Bergen":
+                    label_with_company = dp_metadata.get("OperationalUnitInfo", {}).get("LabelWithCompany")
+                    if label_with_company in ["[BRG] Mechanics", "[BRG] Shiftleader", "[BRG] Mechanics Training/follow up", "[BRG] Management"]:
+                        display_name = dp_metadata.get("EmployeeInfo", {}).get("DisplayName")
+                        if display_name and display_name not in combined_display_names:  # Avoid duplicates
+                            combined_display_names.append(display_name)
+                        else:
+                            print("DisplayName not found or already added for item:", item)
+
+        except requests.exceptions.RequestException as e:
+            print(f"Error accessing timesheets at {url}:", e)
+            if response is not None:
+                print("Response content:", response.text)
+
+    # Write the combined DisplayName data to a CSV file
+    if combined_display_names:
+        csv_file = "Data/Deputy/Bergen_mech.csv"
+        with open(csv_file, mode="w", newline="") as file:
+            writer = csv.writer(file)
+            
+            # Write header
+            writer.writerow(["label"])
+
+            # Write each DisplayName as a new row
+            for name in combined_display_names:
+                writer.writerow([name])
+  
+        print(f"Combined data successfully written to {csv_file}")
+        return csv_file  # Return the path to the CSV file
+    else:
+        print("No valid timesheets found across all URLs.")
+        return None
 
 def update_mech():
     # Load environment variables from .env file

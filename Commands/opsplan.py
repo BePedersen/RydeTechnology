@@ -329,7 +329,7 @@ async def opsplan(ctx):
                         ]
                     )
                     + "\n\n📋 **Operational Notes**:\n"
-                    f"- **Vi kjører på:**: {selected_percentage }%\n"                    
+                    f"- **Vi kjører på:** {selected_percentage }%\n"                    
                     f"- **Inaktive**: {selected_days_inactive} days\n"
                     f"- **Klynger**: {selected_percentage + 10}% i klynger\n"
                     f"- **Redeploy**: {selected_percentage + 15}% på inactive\n\n"

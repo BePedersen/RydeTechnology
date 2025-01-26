@@ -6,6 +6,7 @@ from asyncio import TimeoutError
 import random
 from datetime import datetime
 import logging
+from .update_roles import update_roles
 
 intents = discord.Intents.default()
 intents.messages = True  # Allow reading messages
@@ -195,56 +196,85 @@ async def opsplan(ctx):
         bot_messages = []
 
         async def people_callback(interaction):
-            selected_people.extend(
-                [option['label'] for option in people_options if option['value'] in interaction.data['values']]
-            )  # Extract only labels for selected people
-            msg = await interaction.response.send_message(
-                f"You selected: {', '.join(selected_people)} (People)", ephemeral=True
-            )
-            bot_messages.append(msg)
+            try:
+                selected_people.extend(
+                    [
+                        {
+                            "name": option["label"],
+                            "username": option.get("username", "Unknown")
+                        }
+                        for option in people_options
+                        if option["value"] in interaction.data["values"]
+                    ]
+                )  # Extract labels and usernames for selected people
 
-            if selected_people:
-                msg = await ctx.send("Now, assign places for each selected person.")
+                # Write the selected people to the file
+                with open("Data/Current_shift.csv", mode="w", newline="", encoding="utf-8") as file:
+                    writer = csv.writer(file)
+                    writer.writerow(["label", "Username"])  # Write header
+                    for person in selected_people:
+                        writer.writerow([person["name"], person["username"]])
+
+                logging.info(f"Written {len(selected_people)} people to Current_shift.csv.")
+                await update_roles(ctx, "Data/Current_shift.csv")
+
+                # Inform the user and proceed
+                msg = await interaction.response.send_message(
+                    f"You selected: {', '.join([person['name'] for person in selected_people])} (People)", ephemeral=True
+                )
                 bot_messages.append(msg)
-                await create_places_dropdowns()
+
+                if selected_people:
+                    msg = await ctx.send("Now, assign places for each selected person.")
+                    bot_messages.append(msg)
+                    await create_places_dropdowns()
+            except Exception as e:
+                logging.error(f"Error in people_callback: {e}")
+                await interaction.response.send_message("An error occurred while processing your selection.", ephemeral=True)
 
         # Places selection callback
         async def place_callback(interaction, person):
-            # Map selected dropdown `value`s back to their human-readable `label`s
-            places = [
-                next((opt['label'] for opt in places_options if f"{person}_{i}_{opt['value']}" == value), value)
-                for i, value in enumerate(interaction.data['values'])
-            ]
-            selected_places[person] = places  # Store the mapped labels for the selected places
+            try:
+                # Use the 'name' field of the person dictionary as the key
+                person_name = person['name']
+                
+                # Map selected dropdown `value`s back to their human-readable `label`s
+                places = [
+                    next((opt['label'] for opt in places_options if f"{person_name}_{i}_{opt['value']}" == value), value)
+                    for i, value in enumerate(interaction.data['values'])
+                ]
+                selected_places[person_name] = places  # Store the mapped labels for the selected places
 
-            logging.debug(f"Updated selected_places: {selected_places}")
+                logging.debug(f"Updated selected_places: {selected_places}")
 
-            # Respond with the correctly formatted message
-            await interaction.response.send_message(
-                f"{person} will drive to {format_places_list(places)}", ephemeral=True
-            )
+                # Respond with the correctly formatted message
+                await interaction.response.send_message(
+                    f"{person_name} will drive to {format_places_list(places)}", ephemeral=True
+                )
 
-            # Check if all places are assigned
-            if len(selected_places) == len(selected_people):
-                logging.info("All places have been assigned. Moving to the next step.")
-                await ctx.send("Drivers and places have been assigned. Now, configure additional settings.")
-                await create_additional_settings_dropdowns()
-        
+                # Check if all places are assigned
+                if len(selected_places) == len(selected_people):
+                    logging.info("All places have been assigned. Moving to the next step.")
+                    await ctx.send("Drivers and places have been assigned. Now, configure additional settings.")
+                    await create_additional_settings_dropdowns()
+            except Exception as e:
+                logging.error(f"Error in place_callback: {e}")
+                await interaction.response.send_message("An error occurred while assigning places.", ephemeral=True)        
         async def create_places_dropdowns():
             dropdowns = []
 
             for person in selected_people:
                 # Generate unique dropdown values
                 person_places_options = [
-                    {"label": opt["label"], "value": f"{person}_{opt['value']}"}
+                    {"label": opt["label"], "value": f"{person['name']}_{opt['value']}"}
                     for opt in places_options
                 ]
 
                 # Log the generated options
-                logging.debug(f"Dropdown options for {person}: {person_places_options}")
+                logging.debug(f"Dropdown options for {person['name']}: {person_places_options}")
 
                 dropdown = Dropdown(
-                    placeholder=f"Where should {person} drive?",
+                    placeholder=f"Where should {person['name']} drive?",
                     options=person_places_options,
                     callback=lambda interaction, p=person: place_callback(interaction, p),
                     multiple=True
@@ -288,17 +318,16 @@ async def opsplan(ctx):
                 )
                 await send_final_message(additional_comment)
 
-            # Final message function
             async def send_final_message(comment):
-
                 # Create a mapping of `label` to `username` (Discord IDs)
                 label_to_username = {row['label']: row['username'] for row in people_options}
                 
                 # Map dropdown values back to labels
-                value_to_label = {f"{person}_{opt['value']}": opt['label'] for opt in places_options for person in selected_places}
+                value_to_label = {f"{person['name']}_{opt['value']}": opt['label'] for opt in places_options for person in selected_people}
 
+                # Validate `person` data type and generate formatted places
                 formatted_places = {
-                    person: [
+                    person['name'] if isinstance(person, dict) else person: [
                         value_to_label.get(value, value)  # Use the label if found, fallback to value
                         for value in places
                     ]
@@ -324,12 +353,14 @@ async def opsplan(ctx):
                     "🚦 **Team and Areas**:\n"
                     + "\n".join(
                         [
-                            f"- <{label_to_username.get(person, person)}> {random.choice(['kjører', 'fikser', 'ordner', 'cleaner','redder', 'går crazy på', 'gønner', 'swiper', 'går løs på', ''])} {format_places_list(places)}"
+                            f"- <@{label_to_username.get(person['name'] if isinstance(person, dict) else person, person)}> "
+                            f"{random.choice(['kjører', 'fikser', 'ordner', 'cleaner','redder', 'går crazy på', 'gønner', 'swiper', 'går løs på', ''])} "
+                            f"{format_places_list(places)}"
                             for person, places in formatted_places.items()
                         ]
                     )
                     + "\n\n📋 **Operational Notes**:\n"
-                    f"- **Vi kjører på:** {selected_percentage }%\n"                    
+                    f"- **Vi kjører på:** {selected_percentage}%\n"
                     f"- **Inaktive**: {selected_days_inactive} days\n"
                     f"- **Klynger**: {selected_percentage + 10}% i klynger\n"
                     f"- **Redeploy**: {selected_percentage + 15}% på inactive\n\n"
@@ -345,6 +376,7 @@ async def opsplan(ctx):
                     "Make sure you're charged up and ready to go! \n"
                 )
 
+                # Delete previous bot messages
                 for msg in bot_messages:
                     try:
                         await msg.delete()
@@ -366,7 +398,6 @@ async def opsplan(ctx):
                 # Overwrite the skiftleder.csv file with the current skiftleder's name
                 update_skiftleder_csv('Data/skiftleder.csv', ctx.author.display_name)
                 await update_skiftleder_roles(ctx)
-
 
             # Create dropdowns
             percentage_dropdown = Dropdown(

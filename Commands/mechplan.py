@@ -207,16 +207,31 @@ async def mechplan(ctx):
             else:
                 shift_text = f"🌠 Nattskift {date_string} 🌠"
 
-            assigned_tasks = "\n\n".join(
-                [
-                    f"{next((opt['label'] for opt in tasks_options if opt['value'] == task), task)}: "
-                    f"{', '.join([f'<@{opt["value"]}>' for opt in people_options if opt['label'] in task_assignments.get(task, [])][:-1]) if len(task_assignments.get(task, [])) > 1 else ''}"
-                    f"{f'<@{[opt["value"] for opt in people_options if opt["label"] in task_assignments.get(task, [])][0]}>' if len(task_assignments.get(task, [])) == 1 else ''}"
-                    f"{' and ' + f'<@{[opt["value"] for opt in people_options if opt["label"] in task_assignments.get(task, [])][-1]}>' if len(task_assignments.get(task, [])) > 1 else ''}"
-                    for task in selected_tasks
-                ]
-            )
-            final_message = (
+                assigned_tasks = "\n\n".join(
+                    [
+                        f"{next((opt['label'] for opt in tasks_options if opt['value'] == task), task)}: "
+                        + (
+                            ", ".join(
+                                [f"<@{opt['value']}>" for opt in people_options if opt['label'] in task_assignments.get(task, [])][:-1]
+                            )
+                            + " and "
+                            if len(task_assignments.get(task, [])) > 1
+                            else ""
+                        )
+                        + (
+                            f"<@{[opt['value'] for opt in people_options if opt['label'] in task_assignments.get(task, [])][0]}>"
+                            if len(task_assignments.get(task, [])) == 1
+                            else ""
+                        )
+                        + (
+                            f"<@{[opt['value'] for opt in people_options if opt['label'] in task_assignments.get(task, [])][-1]}>"
+                            if len(task_assignments.get(task, [])) > 1
+                            else ""
+                        )
+                        for task in selected_tasks
+                    ]
+                )
+                final_message = (
                 f"{shift_text}\n\n"
                 f"Skiftleder: {ctx.author.display_name}\n\n"
                 f"\U0001F3AF Fokus for dagen: {goal_for_day}\n\n"

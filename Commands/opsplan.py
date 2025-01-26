@@ -7,6 +7,7 @@ import random
 from datetime import datetime
 import logging
 from .update_roles import update_roles
+import asyncio
 
 intents = discord.Intents.default()
 intents.messages = True  # Allow reading messages
@@ -130,6 +131,18 @@ async def update_skiftleder_roles(ctx):
                 await ctx.send(f"File '{skiftleder_file}' is empty or invalid.")
                 return
             
+        logging.info(f"Removing role '{role_name}' from all members...")
+        for member in guild.members:
+            if role in member.roles:
+                try:
+                    await member.remove_roles(role)
+                    logging.info(f"Role '{role_name}' removed from '{member.display_name}'.")
+                except discord.Forbidden:
+                    logging.error(f"Missing permissions to remove role '{role_name}' from '{member.display_name}'.")
+                except Exception as e:
+                    logging.error(f"An error occurred while removing role from '{member.display_name}': {e}")
+
+            
             # Extract the name of the Skiftleder
             skiftleder_name = row.get("Skiftleder", "").strip()
             if not skiftleder_name:
@@ -177,7 +190,17 @@ async def update_skiftleder_roles(ctx):
         logging.error(f"An unexpected error occurred: {e}")
         await ctx.send(f"An unexpected error occurred: {e}")
 
+async def remind_use_car(ctx, selected_people):
+    await asyncio.sleep(15 * 60)  # Wait for 15 minutes
 
+    # Create a mapping of `label` to `username` (Discord IDs)
+    label_to_username = {row['label']: row['username'] for row in read_csv('Data/people_on_shift_ops.csv')}
+
+    # Mention all selected people
+    mentions = " ".join([f"<{label_to_username.get(person['name'], person['name'])}>" for person in selected_people])
+    reminder_message = f"{mentions} Remember to start Use Car 🚗!"
+
+    await ctx.send(reminder_message)
 
 # The opsplan function
 async def opsplan(ctx):
@@ -353,7 +376,7 @@ async def opsplan(ctx):
                     "🚦 **Team and Areas**:\n"
                     + "\n".join(
                         [
-                            f"- <@{label_to_username.get(person['name'] if isinstance(person, dict) else person, person)}> "
+                            f"- <{label_to_username.get(person['name'] if isinstance(person, dict) else person, person)}> "
                             f"{random.choice(['kjører', 'fikser', 'ordner', 'cleaner','redder', 'går crazy på', 'gønner', 'swiper', 'går løs på', ''])} "
                             f"{format_places_list(places)}"
                             for person, places in formatted_places.items()
@@ -392,12 +415,14 @@ async def opsplan(ctx):
 
                 # Send the final message and pin it
                 final_msg = await ctx.send(shift_plan_message)
+                await remind_use_car(ctx, selected_people)
                 await final_msg.pin()
                 logging.info(f"Pinned the new message")
 
                 # Overwrite the skiftleder.csv file with the current skiftleder's name
                 update_skiftleder_csv('Data/skiftleder.csv', ctx.author.display_name)
                 await update_skiftleder_roles(ctx)
+
 
             # Create dropdowns
             percentage_dropdown = Dropdown(

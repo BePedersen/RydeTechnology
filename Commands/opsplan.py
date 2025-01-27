@@ -164,6 +164,18 @@ async def update_skiftleder_roles(ctx):
     except Exception as e:
         logging.error(f"An unexpected error occurred: {e}")
 
+async def remind_send_route(ctx, selected_people):
+    await asyncio.sleep(2 * 60)  # Wait for 5 minutes
+
+    # Create a mapping of `label` to `username` (Discord IDs)
+    label_to_username = {row['label']: row['username'] for row in read_csv('Data/people_on_shift_ops.csv')}
+
+    # Mention all selected people
+    mentions = " ".join([f"<{label_to_username.get(person['name'], person['name'])}>" for person in selected_people])
+    reminder_message = f"{mentions} Husk å send rute!"
+
+    await ctx.send(reminder_message)
+
 async def remind_use_car(ctx, selected_people):
     await asyncio.sleep(15 * 60)  # Wait for 15 minutes
 
@@ -172,7 +184,7 @@ async def remind_use_car(ctx, selected_people):
 
     # Mention all selected people
     mentions = " ".join([f"<{label_to_username.get(person['name'], person['name'])}>" for person in selected_people])
-    reminder_message = f"{mentions} Remember to start Use Car 🚗!"
+    reminder_message = f"{mentions} Husk å start Use Car 🚗!"
 
     await ctx.send(reminder_message)
 
@@ -389,6 +401,7 @@ async def opsplan(ctx):
                 # Overwrite the skiftleder.csv file with the current skiftleder's name
                 update_skiftleder_csv('Data/skiftleder.csv', ctx.author.display_name)
                 await update_skiftleder_roles(ctx)
+                await update_roles(ctx, "Data/Current_shift.csv")
 
                 # Send the final message and pin it
                 final_msg = await ctx.send(shift_plan_message)

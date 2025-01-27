@@ -270,7 +270,7 @@ async def mechplan(ctx):
 
             # Delete previous bot messages
             for msg in bot_messages:
-                try:
+                try:                        
                     await msg.delete()
                 except Exception as e:
                     logging.warning(f"Failed to delete message: {e}")

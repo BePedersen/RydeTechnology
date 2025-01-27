@@ -175,8 +175,6 @@ def test_timesheet_access():
                         display_name = dp_metadata.get("EmployeeInfo", {}).get("DisplayName")
                         if display_name and display_name not in combined_display_names:  # Avoid duplicates
                             combined_display_names.append(display_name)
-                        else:
-                            print("DisplayName not found or already added for item:", item)
 
         except requests.exceptions.RequestException as e:
             print(f"Error accessing timesheets at {url}:", e)

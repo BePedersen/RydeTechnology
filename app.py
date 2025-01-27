@@ -5,7 +5,7 @@ import os
 from dotenv import load_dotenv
 import logging
 from Commands.opsplan import opsplan
-from Commands.mechplan import mechplan
+from Commands.mechplan2 import mechplan
 from Commands.edit import save_message, edit_last_message  # Import from edit.py
 from Data_extraction.Deputy.match_names_from_deputy import match_and_update
 from Data_extraction.Deputy.update_ops_on_shift import update_ops

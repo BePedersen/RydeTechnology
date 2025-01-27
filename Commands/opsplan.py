@@ -116,21 +116,17 @@ def update_skiftleder_csv(file_path, skiftleder_name):
 
 
 async def update_skiftleder_roles(ctx):
-  
     guild = ctx.guild
     skiftleder_file = 'Data/skiftleder.csv'
     role_name = "Nivel"
     try:
-        # Read the Skiftleder file
-        with open(skiftleder_file, mode='r', encoding='utf-8') as file:
-            csv_reader = csv.DictReader(file)
-            # Expecting only one row for Skiftleder
-            row = next(csv_reader, None)
-            if not row:
-                logging.error(f"File '{skiftleder_file}' is empty or invalid.")
-                await ctx.send(f"File '{skiftleder_file}' is empty or invalid.")
-                return
-            
+        # Fetch the role
+        role = discord.utils.get(guild.roles, name=role_name)
+        if not role:
+            logging.warning(f"Role '{role_name}' not found in the server.")
+            return  # Exit early if role doesn't exist
+
+        # Remove the role from all members
         logging.info(f"Removing role '{role_name}' from all members...")
         for member in guild.members:
             if role in member.roles:
@@ -138,57 +134,35 @@ async def update_skiftleder_roles(ctx):
                     await member.remove_roles(role)
                     logging.info(f"Role '{role_name}' removed from '{member.display_name}'.")
                 except discord.Forbidden:
-                    logging.error(f"Missing permissions to remove role '{role_name}' from '{member.display_name}'.")
+                    logging.warning(f"Missing permissions to remove role '{role_name}' from '{member.display_name}'.")
                 except Exception as e:
                     logging.error(f"An error occurred while removing role from '{member.display_name}': {e}")
 
-            
-            # Extract the name of the Skiftleder
-            skiftleder_name = row.get("Skiftleder", "").strip()
-            if not skiftleder_name:
-                logging.error(f"Skiftleder name not found in file '{skiftleder_file}'.")
-                await ctx.send(f"Skiftleder name not found in file '{skiftleder_file}'.")
+        # Assign role to the new shift leader
+        with open(skiftleder_file, mode='r', encoding='utf-8') as file:
+            csv_reader = csv.DictReader(file)
+            row = next(csv_reader, None)  # Expecting a single row
+            if not row or 'Skiftleder' not in row:
+                logging.error(f"Skiftleder name missing in '{skiftleder_file}'.")
                 return
 
-        # Find the role in the guild
-        role = discord.utils.get(guild.roles, name=role_name)
-        if not role:
-            logging.error(f"Role '{role_name}' not found in the server.")
-            await ctx.send(f"Role '{role_name}' not found in the server.")
-            return
-
-        # Find the member by name
-        member = discord.utils.get(guild.members, display_name=skiftleder_name)
-        if not member:
-            logging.warning(f"Skiftleder '{skiftleder_name}' not found in the server.")
-            await ctx.send(f"Skiftleder '{skiftleder_name}' not found in the server.")
-            return
-
-        try:
-            # Check if the bot's role is higher than the user's top role
-            if guild.me.top_role <= member.top_role:
-                logging.warning(f"Cannot update role for '{member.display_name}' due to hierarchy restrictions.")
-                await ctx.send(f"Cannot update role for '{member.display_name}' due to hierarchy restrictions.")
+            skiftleder_name = row['Skiftleder'].strip()
+            new_leader = discord.utils.get(guild.members, display_name=skiftleder_name)
+            if not new_leader:
+                logging.warning(f"Shift leader '{skiftleder_name}' not found in the server.")
                 return
 
-            # Add the role
-            await member.add_roles(role)
-            logging.info(f"Role '{role_name}' assigned to '{member.display_name}'.")
-            await ctx.send(f"Role '{role_name}' assigned to '{member.display_name}'.")
+            if guild.me.top_role <= new_leader.top_role:
+                logging.warning(f"Cannot assign role to '{new_leader.display_name}' due to hierarchy restrictions.")
+                return
 
-        except discord.Forbidden:
-            logging.error(f"Missing permissions to assign role '{role_name}' to '{member.display_name}'.")
-            await ctx.send(f"Missing permissions to assign role '{role_name}' to '{member.display_name}'.")
-        except Exception as e:
-            logging.error(f"An unexpected error occurred for user '{member.display_name}': {e}")
-            await ctx.send(f"An unexpected error occurred for user '{member.display_name}': {e}")
+            await new_leader.add_roles(role)
+            logging.info(f"Assigned role '{role_name}' to '{new_leader.display_name}'.")
 
     except FileNotFoundError:
         logging.error(f"File '{skiftleder_file}' not found.")
-        await ctx.send(f"File '{skiftleder_file}' not found.")
     except Exception as e:
         logging.error(f"An unexpected error occurred: {e}")
-        await ctx.send(f"An unexpected error occurred: {e}")
 
 async def remind_use_car(ctx, selected_people):
     await asyncio.sleep(15 * 60)  # Wait for 15 minutes
@@ -239,7 +213,6 @@ async def opsplan(ctx):
                         writer.writerow([person["name"], person["username"]])
 
                 logging.info(f"Written {len(selected_people)} people to Current_shift.csv.")
-                await update_roles(ctx, "Data/Current_shift.csv")
 
                 # Inform the user and proceed
                 msg = await interaction.response.send_message(
@@ -413,15 +386,16 @@ async def opsplan(ctx):
                         await pinned_msg.unpin()
                         logging.info(f"Unpinned messages")
 
+                # Overwrite the skiftleder.csv file with the current skiftleder's name
+                update_skiftleder_csv('Data/skiftleder.csv', ctx.author.display_name)
+                await update_skiftleder_roles(ctx)
+
                 # Send the final message and pin it
                 final_msg = await ctx.send(shift_plan_message)
                 await remind_use_car(ctx, selected_people)
                 await final_msg.pin()
                 logging.info(f"Pinned the new message")
 
-                # Overwrite the skiftleder.csv file with the current skiftleder's name
-                update_skiftleder_csv('Data/skiftleder.csv', ctx.author.display_name)
-                await update_skiftleder_roles(ctx)
 
 
             # Create dropdowns

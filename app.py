@@ -56,8 +56,8 @@ async def opsplan_command(ctx):
     output_file = "Data/people_on_shift_ops.csv"
     await prepare_data(ctx, deputy_file, output_file)
     try:
-        bot_message = await ctx.send("This is your opsplan!")
-        await save_message(ctx, bot_message)
+        #bot_message = await ctx.send("This is your opsplan!")
+        #await save_message(ctx, bot_message)
         await opsplan(ctx)
     except Exception as e:
         logging.error(f"Error in opsplan command: {e}")

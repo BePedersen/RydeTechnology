@@ -56,7 +56,7 @@ def generate_percentage_options():
 
 # Generate percentage options for goals, ensuring they do not overlap with general percentages
 def generate_goal_percentage_options():
-    return [{'label': f"{i}%", 'value': str(i)} for i in range(85, 97, 1)]
+    return [{'label': f"{i}%", 'value': str(i)} for i in range(90, 97, 1)]
 
 # Generate days inactive options
 def generate_days_options():
@@ -165,7 +165,7 @@ async def update_skiftleder_roles(ctx):
         logging.error(f"An unexpected error occurred: {e}")
 
 async def remind_send_route(ctx, selected_people):
-    await asyncio.sleep(2 * 60)  # Wait for 5 minutes
+    await asyncio.sleep(20)  # Wait for 5 minutes
 
     # Create a mapping of `label` to `username` (Discord IDs)
     label_to_username = {row['label']: row['username'] for row in read_csv('Data/people_on_shift_ops.csv')}
@@ -177,7 +177,7 @@ async def remind_send_route(ctx, selected_people):
     await ctx.send(reminder_message)
 
 async def remind_use_car(ctx, selected_people):
-    await asyncio.sleep(15 * 60)  # Wait for 15 minutes
+    await asyncio.sleep(60)  # Wait for 15 minutes
 
     # Create a mapping of `label` to `username` (Discord IDs)
     label_to_username = {row['label']: row['username'] for row in read_csv('Data/people_on_shift_ops.csv')}
@@ -233,8 +233,6 @@ async def opsplan(ctx):
                 bot_messages.append(msg)
 
                 if selected_people:
-                    msg = await ctx.send("Now, assign places for each selected person.")
-                    bot_messages.append(msg)
                     await create_places_dropdowns()
             except Exception as e:
                 logging.error(f"Error in people_callback: {e}")
@@ -263,7 +261,6 @@ async def opsplan(ctx):
                 # Check if all places are assigned
                 if len(selected_places) == len(selected_people):
                     logging.info("All places have been assigned. Moving to the next step.")
-                    await ctx.send("Drivers and places have been assigned. Now, configure additional settings.")
                     await create_additional_settings_dropdowns()
             except Exception as e:
                 logging.error(f"Error in place_callback: {e}")
@@ -405,9 +402,11 @@ async def opsplan(ctx):
 
                 # Send the final message and pin it
                 final_msg = await ctx.send(shift_plan_message)
-                await remind_use_car(ctx, selected_people)
                 await final_msg.pin()
                 logging.info(f"Pinned the new message")
+                await remind_send_route(ctx, selected_people)
+                await remind_use_car(ctx, selected_people)
+
 
 
 

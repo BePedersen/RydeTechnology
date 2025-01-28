@@ -49,6 +49,12 @@ def format_places_list(places):
         return f"{', '.join(places[:-1])} så {places[-1]}"
     return places[0]
 
+def weekday():
+    days = ["ENDElLIG MANDAG", "Tirsdag", "It´s wedensday my dudes", "Torsdag", "For det er fredag min venn", "Lørdag", "Søndag"]
+    today = datetime.now().weekday()  # Gir en verdi mellom 0 (Mandag) og 6 (Søndag)
+    return days[today]
+
+
 
 # Dropdown and View classes
 class Dropdown(Select):
@@ -180,7 +186,7 @@ async def mechplan(ctx):
                 logging.debug(f"Dropdown options for {person['name']}: {person_places_options}")
 
                 dropdown = Dropdown(
-                    placeholder=f"What should{person['name']} do?",
+                    placeholder=f"{person['name']}",
                     options=person_places_options,
                     callback=lambda interaction, p=person: place_callback(interaction, p),
                     multiple=True
@@ -193,7 +199,7 @@ async def mechplan(ctx):
                 return
 
             view = DropdownView(ctx, dropdowns)
-            msg = await ctx.send("Fordel oppgaver for hver valgte person:", view=view)
+            msg = await ctx.send("Fordel ansvar for hver valgte person:", view=view)
             bot_messages.append(msg)
         
         
@@ -238,6 +244,7 @@ async def mechplan(ctx):
 
             now = datetime.now()
             date_string = now.strftime("%d.%m.%Y")
+            today = weekday()
             shift_text = (
                 f"🌅 Tidligskift {date_string} 🌅" if 6 <= now.hour < 14 else
                 f"🌄 Kveldskift {date_string} 🌄" if 14 <= now.hour < 22 else
@@ -245,10 +252,11 @@ async def mechplan(ctx):
             )
 
             shift_plan_message = (
-                f"{shift_text}\n\n"
+                f"{shift_text}\n"
+                f"**{today}**\n\n"
                 f"Today's Goal: {goal}\n\n"
                 f"**Skiftleder: {ctx.author.display_name}**\n\n"
-                "🚦 **Dagens Ansvarsområder:**:\n"
+                "📋**Dagens Ansvarsområder:**:\n"
                 + "\n".join(
                     [
                         f"- <{label_to_username.get(person['name'] if isinstance(person, dict) else person, person)}> "

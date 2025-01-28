@@ -180,7 +180,7 @@ async def mechplan(ctx):
                 logging.debug(f"Dropdown options for {person['name']}: {person_places_options}")
 
                 dropdown = Dropdown(
-                    placeholder=f"Where should {person['name']} drive?",
+                    placeholder=f"What should{person['name']} do?",
                     options=person_places_options,
                     callback=lambda interaction, p=person: place_callback(interaction, p),
                     multiple=True

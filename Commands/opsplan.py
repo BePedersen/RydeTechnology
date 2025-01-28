@@ -165,7 +165,7 @@ async def update_skiftleder_roles(ctx):
         logging.error(f"An unexpected error occurred: {e}")
 
 async def remind_send_route(ctx, selected_people):
-    await asyncio.sleep(20)  # Wait for 5 minutes
+    await asyncio.sleep(60)  # Wait for 5 minutes
 
     # Create a mapping of `label` to `username` (Discord IDs)
     label_to_username = {row['label']: row['username'] for row in read_csv('Data/people_on_shift_ops.csv')}
@@ -177,7 +177,7 @@ async def remind_send_route(ctx, selected_people):
     await ctx.send(reminder_message)
 
 async def remind_use_car(ctx, selected_people):
-    await asyncio.sleep(60)  # Wait for 15 minutes
+    await asyncio.sleep(15*60)  # Wait for 15 minutes
 
     # Create a mapping of `label` to `username` (Discord IDs)
     label_to_username = {row['label']: row['username'] for row in read_csv('Data/people_on_shift_ops.csv')}

@@ -77,9 +77,11 @@ class DropdownView(View):
     def __init__(self, ctx, dropdowns):
         super().__init__()
         self.ctx = ctx
-        for dropdown in dropdowns:
+        for i, dropdown in enumerate(dropdowns):
+            if len(self.children) >= 25:  # Prevent adding more than 25 components
+                break  
             self.add_item(dropdown)
-
+            
 # Function to read chat input
 async def read_chat(ctx, prompt_message, timeout=60):
     """Prompt the user to input additional data via chat."""
@@ -133,17 +135,17 @@ async def mechplan(ctx):
 
                 logging.info(f"Written {len(selected_people)} people to Current_shift.csv.")
 
-                # Inform the user and proceed
-                msg = await interaction.response.send_message(
-                    f"You selected: {', '.join([person['name'] for person in selected_people])} (People)", ephemeral=True
-                )
-                bot_messages.append(msg)
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        f"You selected: {', '.join([person['name'] for person in selected_people])} (People)", ephemeral=True
+            )
 
                 if selected_people:
                     await create_places_dropdowns()
             except Exception as e:
                 logging.error(f"Error in people_callback: {e}")
-                await interaction.response.send_message("An error occurred while processing your selection.", ephemeral=True)
+                if not interaction.response.is_done():
+                    await interaction.response.send_message("An error occurred while processing your selection.", ephemeral=True)
 
         # Places selection callback
         async def place_callback(interaction, person):
@@ -176,13 +178,11 @@ async def mechplan(ctx):
             dropdowns = []
 
             for person in selected_people:
-                # Generate unique dropdown values
                 person_places_options = [
                     {"label": opt["label"], "value": f"{person['name']}_{opt['value']}"}
                     for opt in places_options
                 ]
 
-                # Log the generated options
                 logging.debug(f"Dropdown options for {person['name']}: {person_places_options}")
 
                 dropdown = Dropdown(
@@ -198,10 +198,25 @@ async def mechplan(ctx):
                 await ctx.send("No places available to assign. Please try again.")
                 return
 
-            view = DropdownView(ctx, dropdowns)
-            msg = await ctx.send("Fordel ansvar for hver valgte person:", view=view)
-            bot_messages.append(msg)
-        
+            # **Delete old bot messages before sending new UI elements**
+            for msg in bot_messages:
+                try:
+                    await msg.delete()
+                except Exception as e:
+                    logging.warning(f"Could not delete message: {e}")
+
+            bot_messages.clear()
+
+            # **Split dropdowns into multiple views (strict max 25 per view)**
+            CHUNK_SIZE = 25  
+            for i in range(0, len(dropdowns), CHUNK_SIZE):
+                chunk = dropdowns[i:i + CHUNK_SIZE]
+                
+                view = DropdownView(ctx, chunk)  # Pass only a subset of dropdowns
+                msg = await ctx.send(f"Fordel ansvar for {len(chunk)} personer:", view=view)
+                bot_messages.append(msg)
+
+                logging.info(f"Sent {len(chunk)} dropdowns in one view (Max 25).")
         
         # Create dropdowns for additional settings
         async def create_additional_settings_dropdowns():

@@ -50,7 +50,7 @@ def format_places_list(places):
     return places[0]
 
 def weekday():
-    days = ["ENDElLIG MANDAG", "Tirsdag", "It´s wedensday my dudes", "Torsdag", "For det er fredag min venn", "Lørdag", "Søndag"]
+    days = ["ENDELIG MANDAG", "Tirsdag", "It´s wedensday my dudes", "Torsdag", "For det er fredag min venn", "Lørdag", "Søndag"]
     today = datetime.now().weekday()  # Gir en verdi mellom 0 (Mandag) og 6 (Søndag)
     return days[today]
 
@@ -279,7 +279,9 @@ async def mechplan(ctx):
                         for person, places in formatted_places.items()
                     ]
                 )
-                + "\n\n"
+                + "\n"
+                f"** Her finner du rutinene **\n"
+                f" <#1333539529885351967>\n\n"
                 f" **Comment**:\n{comment or 'No additional comment'}\n\n"
                 "\U0001F4CC **Viktig**\n\n"
                 "**Ikke glem å kost under pult og sjekk at det ser fint ut på verkstedet før du går**\n"

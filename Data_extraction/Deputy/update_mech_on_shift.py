@@ -164,9 +164,22 @@ def test_timesheet_access():
 
             # Filter data for CompanyName 'Bergen' and extract DisplayName
             for item in data:
-                dp_metadata = item.get("_DPMetaData", {})
-                operational_unit_info = dp_metadata.get("OperationalUnitInfo", {})
-                company_name = operational_unit_info.get("CompanyName", {})
+                dp_metadata = item.get("_DPMetaData", {})  # Get metadata or empty dict
+                if not dp_metadata:
+                    print("Warning: '_DPMetaData' key is missing or None in item:", item)
+                    continue  # Skip this iteration if there's no metadata
+
+                operational_unit_info = dp_metadata.get("OperationalUnitInfo", {})  # Get unit info or empty dict
+                if operational_unit_info is None:
+                    employee_info = dp_metadata.get("EmployeeInfo", {})
+                    if isinstance(employee_info, list):
+                        for info in employee_info:
+                            if isinstance(info, dict):
+                                display_name = info.get("DisplayName")
+                    print("Warning: 'OperationalUnitInfo' is None in dp_metadata:",display_name)
+                    continue  # Skip this iteration if no OperationalUnitInfo
+
+                company_name = operational_unit_info.get("CompanyName", None)
 
                 # Check for 'Bergen' in CompanyName and extract DisplayName
                 if company_name == "Bergen":

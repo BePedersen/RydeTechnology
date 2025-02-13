@@ -23,7 +23,7 @@ async def match_and_update(ctx, deputy_file, output_file):
         }
         for member in guild.members
     ]
-    logging.info(f"Discord members in {guild.name}: {discord_members}")
+    #logging.info(f"Discord members in {guild.name}: {discord_members}")
 
     # Read the deputy file
     deputy_data = read_csv(deputy_file)
@@ -61,7 +61,7 @@ async def match_and_update(ctx, deputy_file, output_file):
         output_data.append(entry)
 
     # Log the data to be written
-    logging.debug(f"Data to write to {output_file}: {output_data}")
+    #logging.debug(f"Data to write to {output_file}: {output_data}")
 
     # Write to the specified output file
     write_csv(output_file, output_data, fieldnames=['label', 'value', 'username'])

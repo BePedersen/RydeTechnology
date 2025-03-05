@@ -50,6 +50,11 @@ def format_places_list(places):
         return f"{', '.join(places[:-1])} så {places[-1]}"
     return places[0]
 
+def weekday():
+    days = ["ENDELIG MANDAG", "Tirsdag", "It´s wedensday my dudes", "Torsdag", "For det er fredag min venn", "Lørdag", "Søndag"]
+    today = datetime.now().weekday()  # Gir en verdi mellom 0 (Mandag) og 6 (Søndag)
+    return days[today]
+
 # Generate percentage options for general usage
 def generate_percentage_options():
     return [{'label': f"{i}%", 'value': str(i)} for i in range(25, 55, 5)]
@@ -164,29 +169,14 @@ async def update_skiftleder_roles(ctx):
     except Exception as e:
         logging.error(f"An unexpected error occurred: {e}")
 
-async def remind_send_route(ctx, selected_people):
-    await asyncio.sleep(60)  # Wait for 5 minutes
 
-    # Create a mapping of `label` to `username` (Discord IDs)
-    label_to_username = {row['label']: row['username'] for row in read_csv('Data/people_on_shift_ops.csv')}
 
-    # Mention all selected people
-    mentions = " ".join([f"<{label_to_username.get(person['name'], person['name'])}>" for person in selected_people])
-    reminder_message = f"{mentions} Husk å send rute!"
-
-    await ctx.send(reminder_message)
-
-async def remind_use_car(ctx, selected_people):
-    await asyncio.sleep(15*60)  # Wait for 15 minutes
-
-    # Create a mapping of `label` to `username` (Discord IDs)
-    label_to_username = {row['label']: row['username'] for row in read_csv('Data/people_on_shift_ops.csv')}
-
-    # Mention all selected people
-    mentions = " ".join([f"<{label_to_username.get(person['name'], person['name'])}>" for person in selected_people])
-    reminder_message = f"{mentions} Husk å start Use Car 🚗!"
-
-    await ctx.send(reminder_message)
+async def remind_task(ctx, selected_people, delay, message):
+    """Unified function to send reminders with delay."""
+    await asyncio.sleep(delay)
+    label_to_username = {row['label']: row['username'] for row in     read_csv('Data/people_on_shift_ops.csv')}
+    mentions = " ".join([f"<{label_to_username.get(person['name'], person['name'])}>" for person in selected_people])    
+    await ctx.send(f"{mentions} {message}")
 
 # The opsplan function
 async def opsplan(ctx):
@@ -290,10 +280,20 @@ async def opsplan(ctx):
                 logging.error("No dropdowns created. Check selected_people and places_options.")
                 await ctx.send("No places available to assign. Please try again.")
                 return
+            # Discord allows max **5 dropdowns per View**, so we split accordingly
+            max_items_per_view = 5  
+            dropdown_chunks = [dropdowns[i:i + max_items_per_view] for i in range(0, len(dropdowns), max_items_per_view)]
 
-            view = DropdownView(ctx, dropdowns)
-            msg = await ctx.send("Assign places for each selected person:", view=view)
-            bot_messages.append(msg)
+            for i, chunk in enumerate(dropdown_chunks):
+                view = View()
+                for dropdown in chunk:
+                    view.add_item(dropdown)  # Add only up to 5 dropdowns per View
+
+                await ctx.send(f"Assign places for each selected person (Batch {i+1}):", view=view)
+
+            #view = DropdownView(ctx, dropdowns)
+            #msg = await ctx.send("Assign places for each selected person:", view=view)
+            #bot_messages.append(msg)
             
         # Create dropdowns for additional settings
         async def create_additional_settings_dropdowns():
@@ -343,7 +343,7 @@ async def opsplan(ctx):
 
                 now = datetime.now()
                 date_string = now.strftime("%d.%m.%Y")
-
+                today = weekday()
                 shift_text = (
                     f"🌅 Tidligskift {date_string} 🌅" if 6 <= now.hour < 14 else
                     f"🌄 Kveldskift {date_string} 🌄" if 14 <= now.hour < 22 else
@@ -352,6 +352,7 @@ async def opsplan(ctx):
 
                 shift_plan_message = (
                     f"{shift_text}\n\n"
+                    f"**{today}**\n\n"
                     f"**Skiftleder: {ctx.author.display_name}**\n\n"
                     f" **Goal** \n"
                     f"- Availability: 🎯 {selected_goal_percentage}%\n\n"
@@ -369,13 +370,16 @@ async def opsplan(ctx):
                     f"- **Inaktive**: {selected_days_inactive} days\n"
                     f"- **Klynger**: {selected_percentage + 10}% i klynger\n"
                     f"- **Redeploy**: {selected_percentage + 15}% på inactive\n\n"
-                    "**Reminders:**\n"
-                    "**Husk Use Car🚗**\n"
-                    "**God QC**\n"
-                    "**Fiks Nivler innen en time**\n"
-                    "**Ta med deploys fra lageret**\n\n"
-                    "**If you have any questions:**\n"
-                    "Contact skiftleder over Discord through the voice channel or tag skiftleder and write a message in this chat.\n\n"
+                    f"**Reminders:**\n"
+                    f"**Husk Use Car🚗**\n"
+                    f"**God QC**\n"
+                    f"**Fiks Nivler innen en time**\n"
+                    f"**Ta med deploys fra lageret**\n\n"
+                    f"**Koder til Konteineren:\n"
+                    f"**76872**\n"
+                    f"**0701**\n"
+                    f"**If you have any questions:**\n"
+                    f"Contact skiftleder over Discord through the voice channel or tag skiftleder and write a message in this chat.\n\n"
                     f" **Comment**:\n{comment or 'No additional comment'}\n\n"
                     "🔋🔋 **Battery Check** 🔋🔋 \n"
                     "Make sure you're charged up and ready to go! \n"
@@ -404,9 +408,11 @@ async def opsplan(ctx):
                 final_msg = await ctx.send(shift_plan_message)
                 await final_msg.pin()
                 logging.info(f"Pinned the new message")
-                await remind_send_route(ctx, selected_people)
-                await remind_use_car(ctx, selected_people)
-
+                await remind_task(ctx, selected_people, 60, "Husk å sende rute!")
+                await remind_task(ctx, selected_people, 15 * 60, "Husk å starte Use Car 🚗!")
+                await remind_task(ctx, selected_people, 10 * 60, "Husk å sende inn avvik på bilen!")
+                if datetime.now().weekday() == 4:
+                    await remind_task(ctx, selected_people, 180 * 60, "Husk at bilen skal vaskes! 🚗💦")
 
 
 

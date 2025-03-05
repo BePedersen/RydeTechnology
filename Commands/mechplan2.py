@@ -1,12 +1,9 @@
 import csv
 import discord
-from discord.ext import commands
 from discord.ui import Select, View
 from asyncio import TimeoutError
-import random
 from datetime import datetime
 import logging
-import asyncio
 
 intents = discord.Intents.default()
 intents.messages = True  # Allow reading messages
@@ -15,7 +12,8 @@ intents.guilds = True  # Allow interaction within guilds
 intents.members = True  # Enable fetching member details
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG)  # Set to DEBUG to see all log messages
+logging.basicConfig(
+    level=logging.DEBUG)  # Set to DEBUG to see all log messages
 
 # Function to read CSV
 # Function to read names from a CSV file
@@ -29,19 +27,22 @@ def read_csv(file_path):
             csv_reader = csv.DictReader(file)
             for index, row in enumerate(csv_reader):
                 label = row.get('label', '').strip()
-                value = row.get('value', '').strip() or f"generated_value_{index}"  # Generate unique value if missing
-                username = row.get('username', '').strip() 
+                value = row.get('value', '').strip(
+                ) or f"generated_value_{index}"  # Generate unique value if missing
+                username = row.get('username', '').strip()
 
                 options.append({
                     'label': label,
                     'value': value,
                     'username': username
                 })
-                logging.debug(f"Processed option: Label={label}, Value={value}")
+                logging.debug(
+                    f"Processed option: Label={label}, Value={value}")
             logging.info(f"Read {len(options)} names from {file_path}")
     except Exception as e:
         logging.error(f"Error reading CSV {file_path}: {e}")
     return options
+
 
 # Helper to format places list with "and" between the last two cities
 def format_places_list(places):
@@ -49,15 +50,20 @@ def format_places_list(places):
         return f"{', '.join(places[:-1])} så {places[-1]}"
     return places[0]
 
-def weekday():
-    days = ["ENDELIG MANDAG", "Tirsdag", "It´s wedensday my dudes", "Torsdag", "For det er fredag min venn", "Lørdag", "Søndag"]
-    today = datetime.now().weekday()  # Gir en verdi mellom 0 (Mandag) og 6 (Søndag)
-    return days[today]
 
+def weekday():
+    days = [
+        "ENDELIG MANDAG", "Tirsdag", "It´s wedensday my dudes", "Torsdag",
+        "For det er fredag min venn", "Lørdag", "Søndag"
+    ]
+    today = datetime.now().weekday(
+    )  # Gir en verdi mellom 0 (Mandag) og 6 (Søndag)
+    return days[today]
 
 
 # Dropdown and View classes
 class Dropdown(Select):
+
     def __init__(self, placeholder, options, callback, multiple=False):
         super().__init__(
             placeholder=placeholder,
@@ -66,41 +72,51 @@ class Dropdown(Select):
                 for opt in options
             ],
             min_values=1,
-            max_values=len(options) if multiple else 1  # Allow multiple selections if `multiple=True`
+            max_values=len(options)
+            if multiple else 1  # Allow multiple selections if `multiple=True`
         )
         self.custom_callback = callback
 
     async def callback(self, interaction: discord.Interaction):
         await self.custom_callback(interaction)
 
+
 class DropdownView(View):
+
     def __init__(self, ctx, dropdowns):
         super().__init__()
         self.ctx = ctx
         for i, dropdown in enumerate(dropdowns):
-            if len(self.children) >= 25:  # Prevent adding more than 25 components
-                break  
+            if len(self.children
+                   ) >= 25:  # Prevent adding more than 25 components
+                break
             self.add_item(dropdown)
-            
+
+
 # Function to read chat input
 async def read_chat(ctx, prompt_message, timeout=60):
     """Prompt the user to input additional data via chat."""
     await ctx.send(prompt_message)
     try:
-        message = await ctx.bot.wait_for(
-            'message',
-            check=lambda m: m.author == ctx.author and m.channel == ctx.channel,
-            timeout=timeout
-        )
+        message = await ctx.bot.wait_for('message',
+                                         check=lambda m: m.author == ctx.author
+                                         and m.channel == ctx.channel,
+                                         timeout=timeout)
         return message.content
     except TimeoutError:
-        msg = await ctx.send("No response received within the time limit. Skipping this step.")
+        msg = await ctx.send(
+            "No response received within the time limit. Skipping this step.")
         return None
 
+async def remind_task(ctx, selected_people, delay, message):
+    """Unified function to send reminders with delay."""
+    await asyncio.sleep(delay)
+    label_to_username = {row['label']: row['username'] for row in read_csv('Data/people_on_shift_ops.csv')}
+    mentions = " ".join([f"<{label_to_username.get(person['name'], person['name'])}>" for person in selected_people])
+    await ctx.send(f"{mentions} {message}")
 
 
-
-# The opsplan function
+# The plan function
 async def mechplan(ctx):
     try:
         # Load data from CSV files
@@ -115,47 +131,53 @@ async def mechplan(ctx):
 
         async def people_callback(interaction):
             try:
-                selected_people.extend(
-                    [
-                        {
-                            "name": option["label"],
-                            "username": option.get("username", "Unknown")
-                        }
-                        for option in people_options
-                        if option["value"] in interaction.data["values"]
-                    ]
-                )  # Extract labels and usernames for selected people
+                selected_people.extend([
+                    {
+                        "name": option["label"],
+                        "username": option.get("username", "Unknown")
+                    } for option in people_options
+                    if option["value"] in interaction.data["values"]
+                ])  # Extract labels and usernames for selected people
 
                 # Write the selected people to the file
-                with open("Data/Current_shift.csv", mode="w", newline="", encoding="utf-8") as file:
+                with open("Data/Current_shift.csv",
+                          mode="w",
+                          newline="",
+                          encoding="utf-8") as file:
                     writer = csv.writer(file)
                     writer.writerow(["label", "Username"])  # Write header
                     for person in selected_people:
                         writer.writerow([person["name"], person["username"]])
 
-                logging.info(f"Written {len(selected_people)} people to Current_shift.csv.")
+                logging.info(
+                    f"Written {len(selected_people)} people to Current_shift.csv."
+                )
 
                 if not interaction.response.is_done():
                     await interaction.response.send_message(
-                        f"You selected: {', '.join([person['name'] for person in selected_people])} (People)", ephemeral=True
-            )
+                        f"You selected: {', '.join([person['name'] for person in selected_people])} (People)",
+                        ephemeral=True)
 
                 if selected_people:
                     await create_places_dropdowns()
             except Exception as e:
                 logging.error(f"Error in people_callback: {e}")
                 if not interaction.response.is_done():
-                    await interaction.response.send_message("An error occurred while processing your selection.", ephemeral=True)
+                    await interaction.response.send_message(
+                        "An error occurred while processing your selection.",
+                        ephemeral=True)
 
         # Places selection callback
         async def place_callback(interaction, person):
             try:
-                await interaction.response.defer()  # Acknowledge the interaction
+                await interaction.response.defer(
+                )  # Acknowledge the interaction
                 person_name = person['name']
 
                 # Map selected dropdown values to labels
                 places = [
-                    next((opt['label'] for opt in places_options if f"{person_name}_{opt['value']}" == value), value)
+                    next((opt['label'] for opt in places_options
+                          if f"{person_name}_{opt['value']}" == value), value)
                     for value in interaction.data['values']
                 ]
                 selected_places[person_name] = places
@@ -164,60 +186,66 @@ async def mechplan(ctx):
 
                 # Check if all places are assigned
                 if len(selected_places) == len(selected_people):
-                    logging.info("All places have been assigned. Proceeding to the next step.")
+                    logging.info(
+                        "All places have been assigned. Proceeding to the next step."
+                    )
                     await create_additional_settings_dropdowns()
 
             except Exception as e:
                 logging.error(f"Error in place_callback: {e}")
                 try:
-                    await interaction.followup.send("An error occurred while assigning places.", ephemeral=True)
+                    await interaction.followup.send(
+                        "An error occurred while assigning places.",
+                        ephemeral=True)
                 except discord.errors.InteractionResponded:
-                    logging.error("Interaction already responded.")                
+                    logging.error("Interaction already responded.")
 
         async def create_places_dropdowns():
             dropdowns = []
 
             for person in selected_people:
-                person_places_options = [
-                    {"label": opt["label"], "value": f"{person['name']}_{opt['value']}"}
-                    for opt in places_options
-                ]
+                person_places_options = [{
+                    "label":
+                    opt["label"],
+                    "value":
+                    f"{person['name']}_{opt['value']}"
+                } for opt in places_options]
 
-                logging.debug(f"Dropdown options for {person['name']}: {person_places_options}")
-
-                dropdown = Dropdown(
-                    placeholder=f"{person['name']}",
-                    options=person_places_options,
-                    callback=lambda interaction, p=person: place_callback(interaction, p),
-                    multiple=True
+                logging.debug(
+                    f"Dropdown options for {person['name']}: {person_places_options}"
                 )
+
+                dropdown = Dropdown(placeholder=f"{person['name']}",
+                                    options=person_places_options,
+                                    callback=lambda interaction, p=person:
+                                    place_callback(interaction, p),
+                                    multiple=True)
                 dropdowns.append(dropdown)
 
             if not dropdowns:
-                logging.error("No dropdowns created. Check selected_people and places_options.")
-                await ctx.send("No places available to assign. Please try again.")
+                logging.error(
+                    "No dropdowns created. Check selected_people and places_options."
+                )
+                await ctx.send(
+                    "No places available to assign. Please try again.")
                 return
+            # Discord allows max **5 dropdowns per View**, so we split accordingly
+            max_items_per_view = 5
+            dropdown_chunks = [
+                dropdowns[i:i + max_items_per_view]
+                for i in range(0, len(dropdowns), max_items_per_view)
+            ]
 
-            # **Delete old bot messages before sending new UI elements**
-            for msg in bot_messages:
-                try:
-                    await msg.delete()
-                except Exception as e:
-                    logging.warning(f"Could not delete message: {e}")
+            for i, chunk in enumerate(dropdown_chunks):
+                view = View()
+                for dropdown in chunk:
+                    view.add_item(
+                        dropdown)  # Add only up to 5 dropdowns per View
 
-            bot_messages.clear()
+                await ctx.send(
+                    f"Assign places for each selected person (Batch {i+1}):",
+                    view=view)
 
-            # **Split dropdowns into multiple views (strict max 25 per view)**
-            CHUNK_SIZE = 25  
-            for i in range(0, len(dropdowns), CHUNK_SIZE):
-                chunk = dropdowns[i:i + CHUNK_SIZE]
-                
-                view = DropdownView(ctx, chunk)  # Pass only a subset of dropdowns
-                msg = await ctx.send(f"Fordel ansvar for {len(chunk)} personer:", view=view)
-                bot_messages.append(msg)
-
-                logging.info(f"Sent {len(chunk)} dropdowns in one view (Max 25).")
-        
         # Create dropdowns for additional settings
         async def create_additional_settings_dropdowns():
             try:
@@ -226,60 +254,69 @@ async def mechplan(ctx):
 
                 # Prompt for additional comments
                 additional_comment = await read_chat(
-                    ctx, "If you have additional notes or instructions, please type them in the chat below. You have 60 seconds:"
+                    ctx,
+                    "If you have additional notes or instructions, please type them in the chat below. You have 60 seconds:"
                 )
 
                 # Send the final message with both goal and comment
                 await send_final_message(goal, additional_comment)
             except Exception as e:
-                logging.error(f"Error in create_additional_settings_dropdowns: {e}")
-                await ctx.send("An error occurred while setting additional settings.")
+                logging.error(
+                    f"Error in create_additional_settings_dropdowns: {e}")
+                await ctx.send(
+                    "An error occurred while setting additional settings.")
 
         async def get_todays_goal(ctx):
-            goal = await read_chat(ctx, "Please enter today's goal. You have 60 seconds:")
+            goal = await read_chat(
+                ctx, "Please enter today's goal. You have 60 seconds:")
             return goal
 
         async def send_final_message(goal, comment):
             # Create a mapping of `label` to `username` (Discord IDs)
-            label_to_username = {row['label']: row['username'] for row in people_options}
+            label_to_username = {
+                row['label']: row['username']
+                for row in people_options
+            }
 
             # Map dropdown values back to labels
-            value_to_label = {f"{person['name']}_{opt['value']}": opt['label'] for opt in places_options for person in selected_people}
+            value_to_label = {
+                f"{person['name']}_{opt['value']}": opt['label']
+                for opt in places_options
+                for person in selected_people
+            }
 
             # Generate formatted places
             formatted_places = {
                 person['name'] if isinstance(person, dict) else person: [
-                    value_to_label.get(value, value)  # Use the label if found, fallback to value
+                    value_to_label.get(
+                        value,
+                        value)  # Use the label if found, fallback to value
                     for value in places
                 ]
                 for person, places in selected_places.items()
             }
 
-            logging.debug(f"Formatted places for final message: {formatted_places}")
+            logging.debug(
+                f"Formatted places for final message: {formatted_places}")
 
             now = datetime.now()
             date_string = now.strftime("%d.%m.%Y")
             today = weekday()
             shift_text = (
-                f"🌅 Tidligskift {date_string} 🌅" if 6 <= now.hour < 14 else
-                f"🌄 Kveldskift {date_string} 🌄" if 14 <= now.hour < 22 else
-                f"🌠 Natteskift {date_string} 🌠"
-            )
+                f"🌅 Tidligskift {date_string} 🌅"
+                if 6 <= now.hour < 14 else f"🌄 Kveldskift {date_string} 🌄"
+                if 14 <= now.hour < 22 else f"🌠 Natteskift {date_string} 🌠")
 
             shift_plan_message = (
                 f"{shift_text}\n"
                 f"**{today}**\n\n"
                 f"Today's Goal: {goal}\n\n"
                 f"**Skiftleder: {ctx.author.display_name}**\n\n"
-                "📋**Dagens Ansvarsområder:**:\n"
-                + "\n".join(
-                    [
-                        f"- <{label_to_username.get(person['name'] if isinstance(person, dict) else person, person)}> "
-                        f"{format_places_list(places)}"
-                        for person, places in formatted_places.items()
-                    ]
-                )
-                + "\n"
+                "📋**Dagens Ansvarsområder:**:\n" + "\n".join([
+                    f"- <{label_to_username.get(person['name'] if isinstance(person, dict) else person, person)}> "
+                    f"{format_places_list(places)}"
+                    for person, places in formatted_places.items()
+                ]) + "\n"
                 f"** Her finner du rutinene **\n"
                 f" <#1333539529885351967>\n\n"
                 f" **Comment**:\n{comment or 'No additional comment'}\n\n"
@@ -287,7 +324,7 @@ async def mechplan(ctx):
                 "**Ikke glem å kost under pult og sjekk at det ser fint ut på verkstedet før du går**\n"
                 "**Verkstedet skal ikke ha småting liggende rundt, legg alt på plass!**\n"
                 "**Det skal aldri være batts inne i lageret når alle har gått**\n\n"
-                "**Hvis har ansvar for rydding av pauserom eller mechstasjon, hå ned med avfall om nødvendig**\n"
+                "**Hvis har ansvar for rydding av pauserom eller mechstasjon, gå ned med avfall om nødvendig**\n"
                 "**Husk å skru av alle ovner når du går**\n"
                 "**Husk jobs, kildesortering og legg til deler**\n\n"
                 "**Det er bare å spørre skiftleder eller andre dersom dere skulle lure på noe**"
@@ -295,7 +332,7 @@ async def mechplan(ctx):
 
             # Delete previous bot messages
             for msg in bot_messages:
-                try:                        
+                try:
                     await msg.delete()
                 except Exception as e:
                     logging.warning(f"Failed to delete message: {e}")
@@ -310,22 +347,25 @@ async def mechplan(ctx):
             final_msg = await ctx.send(shift_plan_message)
             await final_msg.pin()
             logging.info("Pinned the new message.")
+            await remind_task(ctx, selected_people, 360 * 60, "Husk at alle batterie skal ut før dagen dere går hjem!")
+            await remind_task(ctx, selected_people, 45 * 60, "Husk å legg verktøy der det hører hjemme")
+
+
 
         dropdown_options = [
             discord.SelectOption(
                 label=opt['label'],
                 value=opt['value'],
-            )
-            for opt in people_options
+            ) for opt in people_options
         ]
-
 
         # Create the dropdown
         people_dropdown = Select(
             placeholder="Velgt ansatte",
             options=dropdown_options,  # Pass sanitized options
             min_values=1,
-            max_values=len(dropdown_options) if len(dropdown_options) > 0 else 1,
+            max_values=len(dropdown_options)
+            if len(dropdown_options) > 0 else 1,
         )
         people_dropdown.callback = people_callback  # Attach the callback
 
